@@ -6,26 +6,42 @@ antes de decomisionar el Excel actual.
 
 ## 1. Cobertura funcional tributaria
 
-- [ ] **Ganancias ocasionales completas**: venta de casa de habitación anterior a 1987,
-  venta de inmuebles con ajuste art. 73 E.T., venta de acciones (en bolsa y fuera de bolsa),
-  herencias, loterías/rifas, indemnizaciones de seguros de vida — el prototipo solo tiene un
-  campo agregado, el Excel actual tiene ~15 hojas de detalle para esto.
-- [ ] **Ajustes fiscales por año de adquisición (art. 73 E.T.)** para actualizar costos de
-  bienes raíces y acciones — hoy vive en la hoja `ajustes art. 73` del Excel, no está
-  modelado en el motor de reglas nuevo.
-- [ ] **Cédula de dividendos y participaciones** con su tarifa especial y tabla propia.
-- [ ] **Deducciones específicas**: vivienda (intereses hipotecarios), salud, ICETEX,
-  cesantías, donaciones, becas, inversión en cine/obras audiovisuales/librerías —
-  cada una con su propio tope legal, hoy solo hay dos campos genéricos en el prototipo.
-- [ ] **Descuentos tributarios** (art. 254, 255, 256, 257, 257-1 E.T.) con el límite del 30%
-  del impuesto básico de renta.
-- [ ] **Compensaciones** (rentas líquidas negativas de años anteriores).
-- [ ] **Bienes y deudas en moneda extranjera** con conversión por TRM diaria (hoy existe la
-  hoja `TRM_diaria` en el Excel; no está integrada al motor nuevo).
-- [ ] **Sanciones e intereses de mora** con las reglas de gradualidad del art. 640 E.T. —
-  hoy es un módulo completo en el Excel (`Sanciones (2)`), no portado.
-- [ ] **Anticipo de renta año siguiente** con las dos metodologías de ley (individual y
-  promedio) y su lógica de primera/segunda/tercera vez.
+- [x] **Ganancias ocasionales** — venta de inmuebles con ajuste art. 73, venta de acciones
+  (bolsa/fuera de bolsa), herencias/legados/donaciones, loterías/rifas. Implementado en
+  `backend/app/rules_engine/ganancias_ocasionales.py`, expuesto en
+  `/ganancias-ocasionales/*`, con 9 pruebas unitarias. **Pendiente:** indemnizaciones de
+  seguros de vida y el caso especial de vivienda adquirida antes de 1987.
+- [x] **Ajustes fiscales por año de adquisición (art. 73 E.T.)** — implementado como tabla
+  de factores en `parametros_2025.py` (`FACTORES_AJUSTE_ART73_POR_ANIO`), consumida por
+  `costo_fiscal_ajustado()`. **Pendiente:** los factores incluidos son una muestra de años
+  recientes; ampliar y confirmar contra el decreto de ajuste de costos vigente antes de
+  producción.
+- [x] **Cédula de dividendos y participaciones** — implementada en
+  `backend/app/rules_engine/dividendos.py`, con el componente de dividendos gravados
+  (tabla marginal) y no gravados en cabeza de la sociedad (tarifa corporativa equivalente).
+- [x] **Deducciones específicas con tope real** — intereses de vivienda, salud/medicina
+  prepagada y dependientes económicos, implementadas en
+  `backend/app/rules_engine/deducciones.py`. **Pendiente:** ICETEX, cesantías, donaciones
+  como deducción (nota: donaciones se modeló como descuento tributario, ver abajo), becas,
+  inversión en cine/obras audiovisuales/librerías.
+- [x] **Descuentos tributarios** — donaciones (art. 257 E.T.) y el límite conjunto del 30%
+  del impuesto básico (art. 259 E.T.) implementados en
+  `backend/app/rules_engine/descuentos_tributarios.py`. **Pendiente:** descuentos
+  específicos de los artículos 255 y 256 E.T. (inversión en investigación/tecnología,
+  proyectos de energía) — hoy solo se modela el mecanismo genérico del límite, no cada
+  descuento particular.
+- [ ] **Compensaciones** (rentas líquidas negativas de años anteriores). Sigue pendiente.
+- [ ] **Bienes y deudas en moneda extranjera** con conversión por TRM diaria. Sigue
+  pendiente.
+- [x] **Sanciones e intereses de mora** — sanción por extemporaneidad (con y sin impuesto a
+  cargo), sanción por corrección, e interés de mora simple diario, implementados en
+  `backend/app/rules_engine/sanciones.py`. **Pendiente:** régimen de sanción reducida por
+  gradualidad (art. 640 E.T., parágrafos de buen comportamiento del contribuyente) y la
+  tasa de interés de mora es referencial — debe sustituirse por la tasa vigente certificada
+  por la Superintendencia Financiera antes de un caso real.
+- [x] **Anticipo de renta año siguiente** — ambas metodologías (individual y promedio) con
+  lógica de primera/segunda/tercera vez, implementado en
+  `backend/app/rules_engine/anticipo.py`.
 
 ## 2. Producto y experiencia
 
