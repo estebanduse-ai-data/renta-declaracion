@@ -29,6 +29,9 @@ def crear_issue(repo: str, fila: dict) -> None:
         f"Generada desde `data/backlog.csv` — ver `docs/PLAN_DE_TRABAJO.md` y "
         f"`docs/FALTANTES.md` para contexto completo."
     )
+    if fila.get("nota_estado"):
+        cuerpo += f"\n\n**Nota de estado:** {fila['nota_estado']}"
+
     comando = [
         "gh", "issue", "create",
         "--repo", repo,
@@ -39,12 +42,29 @@ def crear_issue(repo: str, fila: dict) -> None:
     for label in fila["labels"].split(","):
         comando += ["--label", label.strip()]
 
-    print("→", fila["titulo"])
+    print("→", fila["titulo"], f"[{fila.get('estado', 'pendiente')}]")
     resultado = subprocess.run(comando, capture_output=True, text=True)
     if resultado.returncode != 0:
         print("  aviso:", resultado.stderr.strip())
-    else:
-        print("  creada:", resultado.stdout.strip())
+        return
+
+    url_issue = resultado.stdout.strip()
+    print("  creada:", url_issue)
+
+    if fila.get("estado") == "hecho":
+        cierre = subprocess.run(
+            [
+                "gh", "issue", "close", url_issue,
+                "--repo", repo,
+                "--comment", "Cerrada automáticamente: ya implementada al momento de cargar el backlog.",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if cierre.returncode == 0:
+            print("  cerrada automáticamente (ya estaba hecha)")
+        else:
+            print("  aviso al cerrar:", cierre.stderr.strip())
 
 
 def main() -> None:

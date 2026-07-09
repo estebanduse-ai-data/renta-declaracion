@@ -180,3 +180,48 @@ TASA_INTERES_MORA_DIARIA_REFERENCIAL = 0.00073  # equivalente aprox. a 22% E.A.
 ANTICIPO_PORCENTAJE_PRIMERA_VEZ = 0.25
 ANTICIPO_PORCENTAJE_SEGUNDA_VEZ = 0.50
 ANTICIPO_PORCENTAJE_TERCERA_VEZ_EN_ADELANTE = 0.75
+
+# ---------------------------------------------------------------------------
+# Compensación de pérdidas fiscales de años anteriores (art. 147 E.T., por
+# analogía aplicado a la cédula respectiva de personas naturales)
+# ---------------------------------------------------------------------------
+
+# Plazo máximo, en años, para compensar una pérdida fiscal contra rentas
+# líquidas futuras de la misma cédula. Valor informativo — el motor no valida
+# todavía si una pérdida ya venció, eso requiere el histórico completo por
+# declarante (ver docs/FALTANTES.md).
+LIMITE_ANIOS_COMPENSACION_PERDIDAS = 12
+
+# ---------------------------------------------------------------------------
+# Deducción combinada de intereses de vivienda y créditos ICETEX (art. 119 E.T.)
+# ---------------------------------------------------------------------------
+
+# El artículo 119 E.T. comparte UN SOLO tope de 1.200 UVT anuales entre los
+# intereses de crédito de vivienda y los intereses de créditos educativos
+# ICETEX — no son topes independientes. Se reutiliza
+# TOPE_DEDUCCION_INTERESES_VIVIENDA_UVT (definido arriba) como el tope
+# combinado; se referencia aquí por completitud documental.
+
+# ---------------------------------------------------------------------------
+# Renta exenta sobre cesantías e intereses de cesantías (art. 206 num. 4 E.T.)
+# ---------------------------------------------------------------------------
+
+# Tabla de porcentaje exento según el promedio mensual de ingresos laborales
+# de los últimos 6 meses, en UVT. Formato: (limite_inferior, limite_superior,
+# porcentaje_exento). limite_superior = None significa "sin límite superior".
+TABLA_EXENCION_CESANTIAS_UVT_MENSUAL = [
+    (0, 350, 1.00),
+    (350, 410, 0.90),
+    (410, 470, 0.80),
+    (470, 530, 0.60),
+    (530, 590, 0.40),
+    (590, 650, 0.20),
+    (650, None, 0.00),
+]
+
+# ---------------------------------------------------------------------------
+# Becas de estudio (art. 206 num. 9 E.T.)
+# ---------------------------------------------------------------------------
+# Exentas en su totalidad siempre que no constituyan contraprestación por
+# servicios prestados por el becario — no tienen tope en UVT, es una
+# exención de todo o nada según esa condición.

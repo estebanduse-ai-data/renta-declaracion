@@ -62,11 +62,27 @@ issues abiertas del repositorio. La primera vez, entra al tablero en GitHub y:
 | Área técnica | Label `area:*` | motor-reglas, backend, frontend, datos, seguridad, infraestructura, documentacion, qa |
 | Prioridad | Label `prioridad:*` | critica, alta, media, baja |
 | Tipo | Label `tipo:*` | feature, bug, deuda-tecnica, riesgo |
+| Estado al momento de cargar | Columna `estado` en `data/backlog.csv` | hecho, parcial, en_progreso, pendiente |
 
 `area:motor-reglas` es intencionalmente la más numerosa en Fase 1: es la capa de mayor
 riesgo del proyecto (ver `docs/RIESGOS.md`, riesgo #1), y las issues de esa área usan la
 plantilla `.github/ISSUE_TEMPLATE/regla_tributaria.md`, que obliga a documentar el
 fundamento normativo y los casos de prueba antes de cerrarse.
+
+La columna `estado` de `data/backlog.csv` refleja el avance real del código en este
+repositorio al momento de cargar el backlog — no es solo planeación. `scripts/crear_issues.py`
+la usa así:
+
+- **hecho** → la issue se crea y se cierra automáticamente, con un comentario indicando que
+  ya estaba resuelta (incluye la nota de qué módulo la implementa, en `nota_estado`).
+- **parcial** / **en_progreso** → la issue se crea abierta, con la nota de estado en el
+  cuerpo para que quien la tome sepa exactamente qué falta.
+- **pendiente** → la issue se crea abierta, sin nota adicional.
+
+Al día de esta versión, 12 de las 49 tareas del backlog ya están cerradas (todas del área
+`motor-reglas`, ver `docs/FALTANTES.md` sección 1) y 1 está parcial. Si sigues avanzando en
+local antes de cargar a GitHub, actualiza `estado` y `nota_estado` en el CSV antes de correr
+el script, para que el historial de issues nazca ya reflejando la realidad.
 
 ## 3. Flujo de trabajo día a día
 

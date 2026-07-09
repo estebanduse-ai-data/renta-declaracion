@@ -21,18 +21,27 @@ antes de decomisionar el Excel actual.
   (tabla marginal) y no gravados en cabeza de la sociedad (tarifa corporativa equivalente).
 - [x] **Deducciones específicas con tope real** — intereses de vivienda, salud/medicina
   prepagada y dependientes económicos, implementadas en
-  `backend/app/rules_engine/deducciones.py`. **Pendiente:** ICETEX, cesantías, donaciones
-  como deducción (nota: donaciones se modeló como descuento tributario, ver abajo), becas,
-  inversión en cine/obras audiovisuales/librerías.
+  `backend/app/rules_engine/deducciones.py`. Ampliado con **ICETEX** (comparte tope con
+  vivienda, art. 119 E.T.), **cesantías e intereses de cesantías** (tabla de exención según
+  ingreso promedio) y **becas de estudio** (exención total si no es contraprestación por
+  servicios). **Pendiente:** donaciones como deducción específica de renta de trabajo (nota:
+  el descuento tributario del 25% ya cubre el caso general de donaciones, ver abajo), y la
+  deducción por inversión en cine/obras audiovisuales/librerías.
 - [x] **Descuentos tributarios** — donaciones (art. 257 E.T.) y el límite conjunto del 30%
   del impuesto básico (art. 259 E.T.) implementados en
   `backend/app/rules_engine/descuentos_tributarios.py`. **Pendiente:** descuentos
   específicos de los artículos 255 y 256 E.T. (inversión en investigación/tecnología,
   proyectos de energía) — hoy solo se modela el mecanismo genérico del límite, no cada
   descuento particular.
-- [ ] **Compensaciones** (rentas líquidas negativas de años anteriores). Sigue pendiente.
-- [ ] **Bienes y deudas en moneda extranjera** con conversión por TRM diaria. Sigue
-  pendiente.
+- [x] **Compensaciones** (rentas líquidas negativas de años anteriores). Implementado en
+  `backend/app/rules_engine/compensaciones.py`. **Pendiente:** el control de vigencia del
+  plazo de 12 años y la separación por cédula requieren el histórico completo por
+  declarante — no modelado todavía a nivel de base de datos.
+- [x] **Bienes y deudas en moneda extranjera** con conversión por TRM. Implementado en
+  `backend/app/rules_engine/moneda_extranjera.py` (TRM de cierre para patrimonio, TRM del
+  día para ingresos). **Pendiente:** integrar una fuente real de TRM diaria (equivalente a
+  la hoja `TRM_diaria` del Excel actual) — hoy la función recibe la TRM como parámetro, no
+  la consulta.
 - [x] **Sanciones e intereses de mora** — sanción por extemporaneidad (con y sin impuesto a
   cargo), sanción por corrección, e interés de mora simple diario, implementados en
   `backend/app/rules_engine/sanciones.py`. **Pendiente:** régimen de sanción reducida por
@@ -71,12 +80,19 @@ antes de decomisionar el Excel actual.
 
 ## 4. Priorización sugerida
 
-1. **Bloqueante para MVP:** ganancias ocasionales, deducciones específicas con topes reales,
-   sanciones/intereses, carga masiva, panel de cartera, pruebas de paridad.
-2. **Importante pero no bloqueante:** moneda extranjera, compensaciones, historial de
-   versiones — pueden entrar en una iteración temprana de Fase 2 si no son casos frecuentes
-   en la cartera actual de 200 declarantes.
-3. **Antes de Fase 3 (portal de clientes):** autenticación robusta, auditoría completa,
+1. **Bloqueante para MVP, ya cerrado en el motor de reglas (✔ este repositorio):**
+   ganancias ocasionales, cédula de dividendos, deducciones específicas con topes reales
+   (incluyendo ICETEX, cesantías y becas), descuentos tributarios, sanciones/intereses,
+   anticipo, compensaciones y moneda extranjera. Todo con pruebas unitarias — ver
+   `backend/tests/` y el changelog en el historial de Git.
+2. **Bloqueante para MVP, todavía pendiente:** carga masiva, panel de cartera, pruebas de
+   paridad contra el Excel actual, autenticación, persistencia de todo lo anterior en la
+   API (hoy el motor de reglas calcula pero solo el endpoint de liquidación y ganancias
+   ocasionales están expuestos vía API).
+3. **Importante pero no bloqueante:** historial de versiones por declaración, descuentos
+   específicos de los artículos 255/256 E.T. — pueden entrar en una iteración temprana de
+   Fase 2 si no son casos frecuentes en la cartera actual de 200 declarantes.
+4. **Antes de Fase 3 (portal de clientes):** autenticación robusta, auditoría completa,
    política de datos personales formalizada — son bloqueantes para exponer el sistema a los
    clientes finales, no para el uso interno del contador.
 
