@@ -66,6 +66,21 @@ npm install
 npm run dev
 ```
 
+## Gestión del proyecto (Issues, Milestones, Project board)
+
+Todo el backlog inicial (49 tareas) vive en [`data/backlog.csv`](data/backlog.csv), listo
+para cargarse a GitHub Issues y a un tablero de GitHub Projects con un par de scripts. Ver
+la guía completa en [`docs/GESTION_PROYECTO.md`](docs/GESTION_PROYECTO.md).
+
+Resumen rápido:
+
+```bash
+gh auth login
+python3 scripts/configurar_github.py <usuario>/renta-declaracion   # labels + milestones
+python3 scripts/crear_issues.py <usuario>/renta-declaracion        # 49 issues del backlog
+./scripts/configurar_proyecto.sh <usuario> <usuario>/renta-declaracion  # tablero Project
+```
+
 ## Convenciones de trabajo
 
 - **Ramas:** `main` (estable) · `develop` (integración) · `feature/<nombre>` · `fix/<nombre>`

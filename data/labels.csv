@@ -1,0 +1,20 @@
+nombre,color,descripcion
+fase:1,0E8A16,Fase 1 — MVP interno para el contador
+fase:2,1D76DB,Fase 2 — Robustecimiento y operación en producción
+fase:3,5319E7,Fase 3 — Portal de autoservicio para clientes finales
+area:motor-reglas,B60205,Cálculo tributario — máximo riesgo del proyecto
+area:backend,FBCA04,API y persistencia
+area:frontend,C2E0C6,Wizard e interfaz del contador
+area:datos,BFD4F2,Modelo de datos y carga masiva
+area:seguridad,D93F0B,Autenticación auditoría cifrado y datos personales
+area:infraestructura,C5DEF5,Docker despliegue CI/CD
+area:documentacion,BFDADC,Documentación y ADR
+area:qa,F9D0C4,Pruebas y validación de paridad con el Excel actual
+prioridad:critica,B60205,Bloqueante para cerrar la fase
+prioridad:alta,D93F0B,Debe resolverse en la fase actual
+prioridad:media,FBCA04,Puede moverse a la siguiente fase si hay presión de tiempo
+prioridad:baja,C2E0C6,Deseable pero no bloqueante
+tipo:feature,0E8A16,Funcionalidad nueva
+tipo:bug,B60205,Comportamiento incorrecto
+tipo:deuda-tecnica,5319E7,Refactor o mejora sin cambio funcional visible
+tipo:riesgo,E99695,Tarea que mitiga un riesgo de docs/RIESGOS.md

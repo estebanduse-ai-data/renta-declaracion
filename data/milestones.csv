@@ -1,0 +1,4 @@
+titulo,descripcion,fecha_objetivo
+Fase 1 — MVP interno,Reemplazo del Excel para la operación diaria del contador con 200 declarantes. Ver docs/PLAN_DE_TRABAJO.md,+14 semanas desde el inicio del proyecto
+Fase 2 — Robustecimiento,Multiusuario avanzado auditoría completa y endurecimiento de seguridad para producción estable,+8 semanas desde el cierre de Fase 1
+Fase 3 — Portal de clientes,Autoservicio para declarantes finales con revisión y aprobación del contador,A definir según resultados de Fase 1 y 2
