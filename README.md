@@ -5,9 +5,14 @@ Personas Naturales (Formulario 210 – DIAN), pensada inicialmente como herramie
 para un contador que gestiona una cartera de declarantes, con arquitectura preparada para
 evolucionar a un portal de autoservicio para clientes finales.
 
-> Estado del proyecto: **Fase 0 — Fundacional.** Este repositorio contiene la arquitectura
-> base, el motor de reglas tributarias y el prototipo de interfaz (wizard). Ver
-> [`docs/PLAN_DE_TRABAJO.md`](docs/PLAN_DE_TRABAJO.md) para el roadmap completo.
+> Estado del proyecto: **Fase 1 en curso.** Motor de reglas tributarias completo,
+> backend con autenticación/CRUD/configuración administrable escrito (no ejecutado
+> todavía contra una base de datos real — ver por qué en
+> [`ESTADO_ACTUAL.md`](ESTADO_ACTUAL.md)), prototipo de wizard sin conectar.
+>
+> **👉 Si vas a retomar este proyecto — en esta sesión o en otra — lee primero
+> [`ESTADO_ACTUAL.md`](ESTADO_ACTUAL.md).** Resume qué está verificado de verdad, qué
+> solo se revisó por sintaxis, y los próximos pasos concretos en orden.
 
 ## Estructura del repositorio
 

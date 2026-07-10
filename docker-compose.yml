@@ -15,7 +15,7 @@ services:
     build: ./backend
     restart: unless-stopped
     env_file:
-      - ./backend/.env.example
+      - ./backend/.env
     environment:
       DATABASE_URL: postgresql+psycopg://renta:renta@db:5432/renta_declaracion
     depends_on:
