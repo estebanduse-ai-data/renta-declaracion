@@ -1,13 +1,23 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
-from app.rules_engine import parametros_2025 as P
+from app.core.permisos import requiere_rol
+from app.db.session import get_db
+from app.models.usuario import RolUsuario
+from app.rules_engine import parametros_2025 as _DEFAULTS
 from app.rules_engine.tarifa import liquidar
+from app.services.parametros_service import obtener_parametros_vigentes
 
-router = APIRouter(prefix="/liquidacion", tags=["liquidacion"])
+router = APIRouter(
+    prefix="/liquidacion",
+    tags=["liquidacion"],
+    dependencies=[Depends(requiere_rol(RolUsuario.ADMIN, RolUsuario.CONTADOR, RolUsuario.AUXILIAR))],
+)
 
 
 class SolicitudLiquidacion(BaseModel):
+    anio_gravable: int = Field(default=_DEFAULTS.ANIO_GRAVABLE, ge=2000, le=2100)
     total_ingresos_brutos_pesos: float = Field(ge=0)
     deducciones_imputables_pesos: float = Field(ge=0, default=0)
     ingreso_salarios_pesos: float = Field(ge=0, default=0)
@@ -27,13 +37,23 @@ class RespuestaLiquidacion(BaseModel):
 
 
 @router.post("/calcular", response_model=RespuestaLiquidacion)
-def calcular_liquidacion(solicitud: SolicitudLiquidacion) -> RespuestaLiquidacion:
+def calcular_liquidacion(
+    solicitud: SolicitudLiquidacion, db: Session = Depends(get_db)
+) -> RespuestaLiquidacion:
     """
-    Calcula la liquidación privada para el año gravable 2025 a partir de
-    totales ya depurados. No persiste nada — el guardado del resultado en
-    un periodo gravable concreto se implementa en una iteración posterior
-    junto con el CRUD de declarantes.
+    Calcula la liquidación privada para el año gravable indicado, a partir de
+    totales ya depurados. Los parámetros normativos (UVT, tabla de tarifa,
+    topes) se resuelven desde el módulo de configuración —ver
+    app/services/parametros_service.py— y no están fijos en el código: si un
+    Admin actualiza el UVT o algún tope desde /configuracion, este endpoint
+    usa el valor nuevo en la siguiente solicitud, sin necesidad de desplegar
+    de nuevo la aplicación.
+
+    No persiste nada — el guardado del resultado en un periodo gravable
+    concreto se implementa junto con el flujo completo del wizard.
     """
+    P = obtener_parametros_vigentes(db, solicitud.anio_gravable)
+
     resultado = liquidar(
         total_ingresos_brutos_pesos=solicitud.total_ingresos_brutos_pesos,
         deducciones_imputables_pesos=solicitud.deducciones_imputables_pesos,

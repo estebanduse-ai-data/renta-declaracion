@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes_liquidacion import router as router_liquidacion
+from app.api.routes_auth import router as router_auth
+from app.api.routes_configuracion import router as router_configuracion
+from app.api.routes_declarantes import router as router_declarantes
 from app.api.routes_ganancias_ocasionales import router as router_ganancias_ocasionales
+from app.api.routes_liquidacion import router as router_liquidacion
+from app.api.routes_usuarios import router as router_usuarios
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -10,7 +14,7 @@ settings = get_settings()
 app = FastAPI(
     title=settings.app_name,
     description="API para el asistente de declaración de renta (Formulario 210, DIAN).",
-    version="0.2.0",
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -21,6 +25,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(router_auth)
+app.include_router(router_usuarios)
+app.include_router(router_declarantes)
+app.include_router(router_configuracion)
 app.include_router(router_liquidacion)
 app.include_router(router_ganancias_ocasionales)
 

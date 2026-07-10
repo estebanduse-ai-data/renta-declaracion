@@ -49,6 +49,38 @@ docker compose up --build
 - Backend disponible en `http://localhost:8000` (documentación interactiva en `/docs`)
 - Frontend disponible en `http://localhost:5173`
 
+El backend aplica las migraciones de Alembic automáticamente al arrancar (ver
+`backend/docker-entrypoint.sh`). Lo único que falta después de `docker compose up`
+es sembrar el primer usuario Admin y los parámetros tributarios 2025:
+
+```bash
+docker compose exec backend python3 scripts/sembrar_datos_iniciales.py \
+  --admin-email admin@tuempresa.com \
+  --admin-password "una-clave-segura" \
+  --admin-nombre "Tu Nombre"
+```
+
+Con eso ya puedes iniciar sesión en `POST /auth/login` y usar el token que devuelve
+como `Bearer` para el resto de endpoints (el resto de usuarios —Contador, Auxiliar—
+se crean desde `/usuarios` una vez autenticado como Admin).
+
+## Módulo de configuración (parámetros que cambian con el tiempo)
+
+Ningún valor normativo está fijo en el código en producción. Un usuario Admin
+administra tres tipos de configuración desde `/configuracion`, cada uno con la
+frecuencia de cambio real que le corresponde (ver `docs/ARQUITECTURA.md`):
+
+| Endpoint | Qué administra | Frecuencia típica |
+|---|---|---|
+| `POST /configuracion/parametros-tributarios` | UVT, tabla de tarifa, topes de deducciones (vivienda, salud, dependientes), tarifas de ganancia ocasional, sanciones, anticipo, etc. — un conjunto completo por año gravable | Anual (resolución DIAN / reforma tributaria) |
+| `POST /configuracion/trm` | Tasa Representativa del Mercado, un valor por fecha | Diaria |
+| `POST /configuracion/tasa-interes-mora` | Tasa de interés de mora, con vigencia desde/hasta | Trimestral |
+
+El payload de `parametros-tributarios` se valida contra `ParametrosTributariosPayload`
+(`backend/app/schemas/configuracion.py`) antes de guardarse — un UVT en cero o una
+tarifa de 150% se rechazan ahí mismo, no llegan a afectar el cálculo de los 200
+declarantes de la cartera. Cada cambio queda en `AuditoriaCambio` con quién lo hizo.
+
 ## Desarrollo del backend sin Docker
 
 ```bash

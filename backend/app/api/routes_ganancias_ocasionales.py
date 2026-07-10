@@ -1,15 +1,24 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
-from app.rules_engine import parametros_2025 as P
+from app.core.permisos import requiere_rol
+from app.db.session import get_db
+from app.models.usuario import RolUsuario
+from app.rules_engine import parametros_2025 as _DEFAULTS
 from app.rules_engine.ganancias_ocasionales import (
-    calcular_ganancia_ocasional_venta_inmueble,
-    calcular_ganancia_ocasional_venta_acciones,
     calcular_ganancia_ocasional_herencia,
     calcular_ganancia_ocasional_loteria,
+    calcular_ganancia_ocasional_venta_acciones,
+    calcular_ganancia_ocasional_venta_inmueble,
 )
+from app.services.parametros_service import obtener_parametros_vigentes
 
-router = APIRouter(prefix="/ganancias-ocasionales", tags=["ganancias-ocasionales"])
+router = APIRouter(
+    prefix="/ganancias-ocasionales",
+    tags=["ganancias-ocasionales"],
+    dependencies=[Depends(requiere_rol(RolUsuario.ADMIN, RolUsuario.CONTADOR, RolUsuario.AUXILIAR))],
+)
 
 
 class RespuestaGananciaOcasional(BaseModel):
@@ -31,6 +40,7 @@ def _a_respuesta(resultado) -> RespuestaGananciaOcasional:
 
 
 class SolicitudVentaInmueble(BaseModel):
+    anio_gravable: int = Field(default=_DEFAULTS.ANIO_GRAVABLE, ge=2000, le=2100)
     precio_venta_pesos: float = Field(ge=0)
     costo_adquisicion_pesos: float = Field(ge=0)
     anio_adquisicion: int
@@ -38,7 +48,10 @@ class SolicitudVentaInmueble(BaseModel):
 
 
 @router.post("/venta-inmueble", response_model=RespuestaGananciaOcasional)
-def venta_inmueble(solicitud: SolicitudVentaInmueble) -> RespuestaGananciaOcasional:
+def venta_inmueble(
+    solicitud: SolicitudVentaInmueble, db: Session = Depends(get_db)
+) -> RespuestaGananciaOcasional:
+    P = obtener_parametros_vigentes(db, solicitud.anio_gravable)
     resultado = calcular_ganancia_ocasional_venta_inmueble(
         precio_venta_pesos=solicitud.precio_venta_pesos,
         costo_adquisicion_pesos=solicitud.costo_adquisicion_pesos,
@@ -53,6 +66,7 @@ def venta_inmueble(solicitud: SolicitudVentaInmueble) -> RespuestaGananciaOcasio
 
 
 class SolicitudVentaAcciones(BaseModel):
+    anio_gravable: int = Field(default=_DEFAULTS.ANIO_GRAVABLE, ge=2000, le=2100)
     precio_venta_pesos: float = Field(ge=0)
     costo_fiscal_pesos: float = Field(ge=0)
     cotiza_en_bolsa: bool = False
@@ -60,7 +74,10 @@ class SolicitudVentaAcciones(BaseModel):
 
 
 @router.post("/venta-acciones", response_model=RespuestaGananciaOcasional)
-def venta_acciones(solicitud: SolicitudVentaAcciones) -> RespuestaGananciaOcasional:
+def venta_acciones(
+    solicitud: SolicitudVentaAcciones, db: Session = Depends(get_db)
+) -> RespuestaGananciaOcasional:
+    P = obtener_parametros_vigentes(db, solicitud.anio_gravable)
     resultado = calcular_ganancia_ocasional_venta_acciones(
         precio_venta_pesos=solicitud.precio_venta_pesos,
         costo_fiscal_pesos=solicitud.costo_fiscal_pesos,
@@ -74,12 +91,14 @@ def venta_acciones(solicitud: SolicitudVentaAcciones) -> RespuestaGananciaOcasio
 
 
 class SolicitudHerencia(BaseModel):
+    anio_gravable: int = Field(default=_DEFAULTS.ANIO_GRAVABLE, ge=2000, le=2100)
     valor_activo_pesos: float = Field(ge=0)
     es_vivienda_habitacion_causante: bool = False
 
 
 @router.post("/herencia", response_model=RespuestaGananciaOcasional)
-def herencia(solicitud: SolicitudHerencia) -> RespuestaGananciaOcasional:
+def herencia(solicitud: SolicitudHerencia, db: Session = Depends(get_db)) -> RespuestaGananciaOcasional:
+    P = obtener_parametros_vigentes(db, solicitud.anio_gravable)
     resultado = calcular_ganancia_ocasional_herencia(
         valor_activo_pesos=solicitud.valor_activo_pesos,
         es_vivienda_habitacion_causante=solicitud.es_vivienda_habitacion_causante,
@@ -93,11 +112,13 @@ def herencia(solicitud: SolicitudHerencia) -> RespuestaGananciaOcasional:
 
 
 class SolicitudLoteria(BaseModel):
+    anio_gravable: int = Field(default=_DEFAULTS.ANIO_GRAVABLE, ge=2000, le=2100)
     valor_premio_pesos: float = Field(ge=0)
 
 
 @router.post("/loteria", response_model=RespuestaGananciaOcasional)
-def loteria(solicitud: SolicitudLoteria) -> RespuestaGananciaOcasional:
+def loteria(solicitud: SolicitudLoteria, db: Session = Depends(get_db)) -> RespuestaGananciaOcasional:
+    P = obtener_parametros_vigentes(db, solicitud.anio_gravable)
     resultado = calcular_ganancia_ocasional_loteria(
         valor_premio_pesos=solicitud.valor_premio_pesos,
         tarifa_loterias=P.TARIFA_GANANCIA_OCASIONAL_LOTERIAS,

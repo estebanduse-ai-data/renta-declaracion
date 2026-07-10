@@ -67,9 +67,20 @@ antes de decomisionar el Excel actual.
 
 ## 3. Plataforma y no-funcionales
 
-- [ ] Autenticación y control de acceso por rol (hoy no implementado, solo mencionado en
-  la arquitectura).
-- [ ] Auditoría de cambios (quién modificó qué dato y cuándo).
+- [x] **Autenticación y control de acceso por rol** — JWT + roles Admin/Contador/Auxiliar,
+  implementado en `backend/app/core/security.py` y `backend/app/core/permisos.py`.
+- [x] **Auditoría de cambios** (quién modificó qué dato y cuándo) — `AuditoriaCambio`,
+  registrada automáticamente en cambios a declarantes, periodos y configuración.
+- [x] **Migraciones de base de datos** — Alembic configurado, con la migración inicial
+  escrita a mano en `backend/migrations/versions/0001_inicial.py` (no se pudo
+  autogenerar por falta de conexión a una base de datos real en el entorno de
+  desarrollo; ver la nota dentro del archivo sobre correr `alembic check` antes de
+  confiar en ella ciegamente en producción).
+- [x] **Módulo de configuración administrable** — parámetros tributarios anuales, TRM
+  diaria y tasa de interés de mora, cada uno accesible solo por el rol Admin desde
+  `/configuracion/*`, con validación estricta (`ParametrosTributariosPayload`) antes de
+  guardar. Ver ADR 0002. **Pendiente:** integrar una fuente automática de TRM (API del
+  Banco de la República) en vez de carga manual — sigue siendo carga manual por ahora.
 - [ ] Backups automatizados y prueba de restauración.
 - [ ] Suite de pruebas de paridad: comparar, declarante por declarante, el resultado del
   sistema nuevo contra el Excel actual, antes de decomisionarlo.
@@ -77,6 +88,20 @@ antes de decomisionar el Excel actual.
 - [ ] Documentación de usuario final para el contador y sus auxiliares.
 - [ ] Política de tratamiento de datos personales (Habeas Data) formalizada — obligatoria
   incluso en Fase 1 por el volumen de datos sensibles de 200 declarantes.
+- [ ] Cifrado en reposo de la base de datos y HTTPS interno — pendientes de configurar en
+  el servidor local definitivo, no aplican en el entorno de desarrollo con Docker Compose.
+
+## 3.1 Backend — persistencia y CRUD
+
+- [x] **CRUD de declarantes y periodos gravables** — `backend/app/api/routes_declarantes.py`,
+  con auditoría en creación y actualización.
+- [ ] Modelos y endpoints de `ingreso_cedular` y `deduccion` por periodo — hoy el wizard
+  tendría que enviar los totales ya depurados en cada llamada a `/liquidacion/calcular`;
+  falta poder guardarlos línea por línea y recalcular.
+- [ ] Persistencia del resultado de liquidación en el `periodo_gravable` correspondiente —
+  hoy el endpoint calcula pero no guarda.
+- [ ] Generación del reporte final en el formato exacto de casillas del Formulario 210,
+  listo para transcribir en los Servicios Informáticos Electrónicos.
 
 ## 4. Priorización sugerida
 

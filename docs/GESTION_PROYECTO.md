@@ -79,10 +79,11 @@ la usa así:
   cuerpo para que quien la tome sepa exactamente qué falta.
 - **pendiente** → la issue se crea abierta, sin nota adicional.
 
-Al día de esta versión, 12 de las 49 tareas del backlog ya están cerradas (todas del área
-`motor-reglas`, ver `docs/FALTANTES.md` sección 1) y 1 está parcial. Si sigues avanzando en
-local antes de cargar a GitHub, actualiza `estado` y `nota_estado` en el CSV antes de correr
-el script, para que el historial de issues nazca ya reflejando la realidad.
+Al día de esta versión, 17 de las 50 tareas del backlog ya están cerradas (12 de
+`motor-reglas`, 4 de `backend`, 1 nueva de configuración administrable) y 1 está
+parcial. Si sigues avanzando en local antes de cargar a GitHub, actualiza `estado` y
+`nota_estado` en el CSV antes de correr el script, para que el historial de issues
+nazca ya reflejando la realidad.
 
 ## 3. Flujo de trabajo día a día
 
