@@ -29,8 +29,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    rol_usuario = postgresql.ENUM("admin", "contador", "auxiliar", name="rolusuario")
-    rol_usuario.create(op.get_bind(), checkfirst=True)
+    # create_type=False evita que SQLAlchemy emita un segundo CREATE TYPE
+    # automáticamente al disparar el evento before_create de la tabla.
+    # La creación la hacemos nosotros explícitamente con IF NOT EXISTS.
+    rol_usuario = postgresql.ENUM(
+        "admin", "contador", "auxiliar",
+        name="rolusuario",
+        create_type=False,
+    )
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE rolusuario AS ENUM ('admin', 'contador', 'auxiliar');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$
+    """)
 
     op.create_table(
         "usuario",
@@ -150,4 +162,4 @@ def downgrade() -> None:
     op.drop_table("periodo_gravable")
     op.drop_table("declarante")
     op.drop_table("usuario")
-    postgresql.ENUM(name="rolusuario").drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS rolusuario")

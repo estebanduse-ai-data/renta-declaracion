@@ -30,6 +30,13 @@ class Usuario(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     nombre: Mapped[str] = mapped_column(String(150))
     password_hash: Mapped[str] = mapped_column(String(255))
-    rol: Mapped[RolUsuario] = mapped_column(Enum(RolUsuario), default=RolUsuario.AUXILIAR)
+    rol: Mapped[RolUsuario] = mapped_column(
+        Enum(
+            RolUsuario,
+            values_callable=lambda e: [m.value for m in e],  # usa "admin", no "ADMIN"
+            create_type=False,  # el tipo lo gestiona la migración de Alembic
+        ),
+        default=RolUsuario.AUXILIAR,
+    )
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
     creado_en: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
