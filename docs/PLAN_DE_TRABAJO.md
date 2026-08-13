@@ -90,3 +90,29 @@ full-stack, extendiendo el cronograma en aproximadamente 30-40%.
   probados antes de decomisionar el Excel).
 - Tiempo de preparación por declarante reducido de forma medible frente al proceso actual.
 - Cero incidentes de pérdida o exposición de datos sensibles durante la operación en servidor local.
+
+---
+
+## 7. Plan de actividades detallado
+
+El cronograma de la sección 3 define las semanas y los hitos estratégicos. El detalle
+operativo semana a semana — con actividades numeradas, prioridades, bloqueos y
+dependencias entre tareas — vive en:
+
+> **`docs/PLAN_DE_ACTIVIDADES.md`** — 34 actividades organizadas en 4 sprints para
+> Fase 1, más las actividades de Fase 2 y Fase 3.
+
+### Mapa de correspondencia cronograma → actividades
+
+| Semana (sección 3) | Sprints del plan de actividades |
+|---|---|
+| Semana 0 (antes de sprint formal) | Actividades 0.1 – 0.5 — desbloqueos críticos |
+| Semanas 1–2 | Sprint 1 (Act. 1.1 – 1.5) — persistencia y datos completos |
+| Semanas 3–4 | Sprint 2 (Act. 2.1 – 2.5) — calidad, seguridad y paridad |
+| Semanas 5–6 | Sprint 3 (Act. 3.1 – 3.5) — Formulario 210 y refactoring |
+| Semanas 7–8 | Sprint 4 (Act. 4.1 – 4.5) — despliegue en servidor del contador |
+| Semanas 9–14 | Buffer correcciones de paridad, documentación, acompañamiento en producción |
+
+> La re-estimación del cronograma tras la sesión de definición funcional con el contador
+> (Act. 0.2) puede mover los sprints 2 en adelante. `PLAN_DE_ACTIVIDADES.md` es el
+> documento que se actualiza en ese caso, no la tabla de semanas de esta sección.

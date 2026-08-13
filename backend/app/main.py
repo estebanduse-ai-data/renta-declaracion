@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.routes_admin import router as router_admin
 from app.api.routes_auth import router as router_auth
-from app.api.routes_configuracion import router as router_configuracion
+from app.api.routes_checklist import router as router_checklist  # Act. 1.1
+from app.api.routes_configuracion import router as router_configuracion, router_publico as router_configuracion_publico
 from app.api.routes_declarantes import router as router_declarantes
 from app.api.routes_ganancias_ocasionales import router as router_ganancias_ocasionales
 from app.api.routes_liquidacion import router as router_liquidacion
@@ -14,7 +16,7 @@ settings = get_settings()
 app = FastAPI(
     title=settings.app_name,
     description="API para el asistente de declaración de renta (Formulario 210, DIAN).",
-    version="0.3.0",
+    version="0.5.0",
 )
 
 app.add_middleware(
@@ -27,10 +29,13 @@ app.add_middleware(
 
 app.include_router(router_auth)
 app.include_router(router_usuarios)
+app.include_router(router_admin)
 app.include_router(router_declarantes)
 app.include_router(router_configuracion)
+app.include_router(router_configuracion_publico)  # Act. 1.4 — solo lectura para todos los roles
 app.include_router(router_liquidacion)
 app.include_router(router_ganancias_ocasionales)
+app.include_router(router_checklist)  # Act. 1.1
 
 
 @app.get("/salud", tags=["infraestructura"])

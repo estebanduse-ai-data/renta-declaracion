@@ -1,36 +1,35 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
-  Info,
-  ChevronRight,
-  ChevronLeft,
-  Check,
-  AlertCircle,
-  User,
-  Wallet,
-  Layers,
-  Calculator,
-  Receipt,
-  FileCheck,
-  ArrowLeft,
-  Loader,
+  Info, ChevronRight, ChevronLeft, Check, AlertCircle,
+  User, Wallet, Layers, Calculator, Receipt, FileCheck,
+  ArrowLeft, Loader,
 } from "lucide-react";
-import { crearDeclarante, crearPeriodo, actualizarPeriodo, calcularLiquidacion, listarPeriodos } from "../api.js";
+import { crearDeclarante, crearPeriodo, actualizarPeriodo, calcularLiquidacion, listarPeriodos, obtenerDeclarante, obtenerParametrosPublicos } from "../api.js";
 
 /* ------------------------------------------------------------------ */
-/* Parámetros tributarios locales — solo como fallback visual          */
-/* El cálculo real lo hace el backend vía /liquidacion/calcular        */
+/* Parámetros tributarios — Act. 1.4                                  */
+/* Se cargan desde /configuracion/parametros-publicos/{anio} al       */
+/* montar el wizard. Los valores de fallback se usan solo si la API   */
+/* falla (modo offline o primera carga sin BD poblada).               */
 /* ------------------------------------------------------------------ */
-const UVT_2025_FALLBACK = 49799;
+const ANIO_GRAVABLE = 2025;
 
-const TABLA_TARIFA_DISPLAY = [
-  { desde: 0, hasta: 1090, tarifa: 0, base: 0 },
-  { desde: 1090, hasta: 1700, tarifa: 0.19, base: 0 },
-  { desde: 1700, hasta: 4100, tarifa: 0.28, base: 116 },
-  { desde: 4100, hasta: 8670, tarifa: 0.33, base: 788 },
-  { desde: 8670, hasta: 18970, tarifa: 0.35, base: 2296 },
-  { desde: 18970, hasta: 31000, tarifa: 0.37, base: 6901 },
-  { desde: 31000, hasta: Infinity, tarifa: 0.39, base: 11352 },
-];
+const PARAMETROS_FALLBACK = {
+  uvt: 49799,
+  tabla_tarifa_uvt: [
+    { desde: 0,     hasta: 1090,     tarifa: 0,    base: 0 },
+    { desde: 1090,  hasta: 1700,     tarifa: 0.19, base: 0 },
+    { desde: 1700,  hasta: 4100,     tarifa: 0.28, base: 116 },
+    { desde: 4100,  hasta: 8670,     tarifa: 0.33, base: 788 },
+    { desde: 8670,  hasta: 18970,    tarifa: 0.35, base: 2296 },
+    { desde: 18970, hasta: 31000,    tarifa: 0.37, base: 6901 },
+    { desde: 31000, hasta: 999999,   tarifa: 0.39, base: 11352 },
+  ],
+  porcentaje_renta_exenta_laboral: 0.25,
+  tope_renta_exenta_laboral_uvt: 790,
+  limite_renta_exenta_deducciones_porcentaje: 0.40,
+  tope_renta_exenta_deducciones_uvt: 1340,
+};
 
 function formatCOP(valor) {
   if (valor === null || valor === undefined || isNaN(valor)) return "$ 0";
@@ -39,20 +38,20 @@ function formatCOP(valor) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Definición de pasos                                                 */
+/* Pasos                                                               */
 /* ------------------------------------------------------------------ */
 const PASOS = [
-  { id: "perfil",      numero: "0", titulo: "Perfil",            icon: Layers },
-  { id: "datos",       numero: "1", titulo: "Datos generales",   icon: User },
-  { id: "patrimonio",  numero: "2", titulo: "Patrimonio",        icon: Wallet },
-  { id: "ingresos",    numero: "3", titulo: "Rentas cedulares",  icon: Layers },
-  { id: "presuntiva",  numero: "6", titulo: "Renta presuntiva",  icon: Calculator },
+  { id: "perfil",      numero: "0", titulo: "Perfil",              icon: Layers },
+  { id: "datos",       numero: "1", titulo: "Datos generales",     icon: User },
+  { id: "patrimonio",  numero: "2", titulo: "Patrimonio",          icon: Wallet },
+  { id: "ingresos",    numero: "3", titulo: "Rentas cedulares",    icon: Layers },
+  { id: "presuntiva",  numero: "6", titulo: "Renta presuntiva",    icon: Calculator },
   { id: "liquidacion", numero: "7", titulo: "Liquidación privada", icon: Receipt },
-  { id: "resumen",     numero: "8", titulo: "Resumen",           icon: FileCheck },
+  { id: "resumen",     numero: "8", titulo: "Resumen",             icon: FileCheck },
 ];
 
 /* ------------------------------------------------------------------ */
-/* Componentes UI reutilizables                                        */
+/* UI helpers                                                          */
 /* ------------------------------------------------------------------ */
 function AyudaInfo({ children }) {
   const [abierto, setAbierto] = useState(false);
@@ -65,7 +64,7 @@ function AyudaInfo({ children }) {
   return (
     <span style={{ position: "relative", display: "inline-flex" }} ref={ref}>
       <button type="button" onClick={() => setAbierto((v) => !v)} aria-label="Ver ayuda"
-        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 999, border: "1px solid #C9BFA8", background: abierto ? "#C96442" : "transparent", color: abierto ? "#FFFFFF" : "#8A7F68", cursor: "pointer", flexShrink: 0 }}>
+        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18, height: 18, borderRadius: 999, border: `1px solid #C9BFA8`, background: abierto ? "#C96442" : "transparent", color: abierto ? "#FFF" : "#8A7F68", cursor: "pointer", flexShrink: 0 }}>
         <Info size={11} strokeWidth={2.5} />
       </button>
       {abierto && (
@@ -104,13 +103,13 @@ function inputStyle(hasError, focused) {
   return { ...inputBase, borderColor: hasError ? "#B3261E" : focused ? "#C96442" : "#DAD3C0", boxShadow: focused ? `0 0 0 3px ${hasError ? "rgba(179,38,30,0.12)" : "rgba(201,100,66,0.14)"}` : "none" };
 }
 
-function TextInput({ value, onChange, hasError, placeholder, prefix, ...props }) {
+function TextInput({ value, onChange, hasError, placeholder, prefix, readOnly, ...props }) {
   const [focused, setFocused] = useState(false);
   return (
     <div style={{ position: "relative" }}>
       {prefix && <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14.5, color: "#8A7F68", fontFamily: "'Inter', sans-serif" }}>{prefix}</span>}
-      <input value={value} onChange={onChange} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} placeholder={placeholder}
-        style={{ ...inputStyle(hasError, focused), paddingLeft: prefix ? 26 : 12 }} {...props} />
+      <input value={value} onChange={onChange} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} placeholder={placeholder} readOnly={readOnly}
+        style={{ ...inputStyle(hasError, focused), paddingLeft: prefix ? 26 : 12, background: readOnly ? "#F7F3EA" : "#FFF", cursor: readOnly ? "default" : "text" }} {...props} />
     </div>
   );
 }
@@ -118,36 +117,27 @@ function TextInput({ value, onChange, hasError, placeholder, prefix, ...props })
 function SelectInput({ value, onChange, options, hasError }) {
   const [focused, setFocused] = useState(false);
   return (
-    <select value={value} onChange={onChange} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={{ ...inputStyle(hasError, focused), cursor: "pointer" }}>
+    <select value={value} onChange={onChange} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      style={{ ...inputStyle(hasError, focused), cursor: "pointer" }}>
       <option value="">Seleccione…</option>
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   );
 }
 
-function Metrica({ label, valor, tono = "neutral", grande }) {
-  const colores = { neutral: "#23201A", positivo: "#4B7B5D", negativo: "#B3261E", acento: "#C96442" };
-  return (
-    <div>
-      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.06em", color: "#8A7F68", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontFamily: "'Fraunces', serif", fontSize: grande ? 30 : 20, fontWeight: 500, color: colores[tono] }}>{formatCOP(valor)}</div>
-    </div>
-  );
-}
-
 function TituloPaso({ titulo, subtitulo }) {
   return (
     <div style={{ marginBottom: 24 }}>
-      <h2 style={{ fontFamily: "'Fraunces', serif", fontWeight: 500, fontSize: 21, margin: "0 0 6px 0", color: "#1E1B15" }}>{titulo}</h2>
-      {subtitulo && <p style={{ fontSize: 13.5, color: "#8A7F68", margin: 0, lineHeight: 1.5 }}>{subtitulo}</p>}
+      <h2 style={{ fontFamily: "'Fraunces', serif", fontWeight: 500, fontSize: 22, margin: "0 0 4px 0", color: "#1E1B15" }}>{titulo}</h2>
+      {subtitulo && <p style={{ fontSize: 13.5, color: "#8A7F68", margin: 0, fontFamily: "'Inter', sans-serif" }}>{subtitulo}</p>}
     </div>
   );
 }
 
 function SubBloque({ titulo, children }) {
   return (
-    <div style={{ marginBottom: 26 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#C96442", marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid #F0ECE1" }}>{titulo}</div>
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#8A7F68", fontFamily: "'Inter', sans-serif", marginBottom: 12 }}>{titulo}</div>
       {children}
     </div>
   );
@@ -166,14 +156,20 @@ function MiniResultado({ label, valor, nota, tono = "neutral" }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Spinner inline                                                      */
-/* ------------------------------------------------------------------ */
+function Metrica({ label, valor, tono = "neutral", grande }) {
+  const colores = { neutral: "#23201A", positivo: "#4B7B5D", negativo: "#B3261E", acento: "#C96442" };
+  return (
+    <div style={{ background: "#F7F3EA", borderRadius: 10, padding: "12px 16px", flex: 1 }}>
+      <div style={{ fontSize: 11.5, fontWeight: 600, color: "#8A7F68", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontFamily: "'Fraunces', serif", fontSize: grande ? 24 : 18, color: colores[tono] }}>{formatCOP(valor)}</div>
+    </div>
+  );
+}
+
 function Spinner({ texto = "Guardando…" }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#8A7F68", fontSize: 13.5, fontFamily: "'Inter', sans-serif" }}>
       <Loader size={15} style={{ animation: "spin 1s linear infinite" }} />
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       {texto}
     </div>
   );
@@ -216,8 +212,6 @@ function PasoPerfil({ perfil, setPerfil }) {
 
 /* ------------------------------------------------------------------ */
 /* PASO 1 — Datos generales                                            */
-/* Nota: los datos llegan PRE-CARGADOS desde el declarante seleccionado */
-/* en el listado. El contador puede editarlos antes de continuar.     */
 /* ------------------------------------------------------------------ */
 function PasoDatos({ datos, setDatos, errores, modoEdicion }) {
   const set = (campo) => (e) => setDatos((d) => ({ ...d, [campo]: e.target.value }));
@@ -266,14 +260,30 @@ function PasoDatos({ datos, setDatos, errores, modoEdicion }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* PASO 2 — Patrimonio                                                 */
+/* PASO 2 — Patrimonio (ampliado)                                      */
 /* ------------------------------------------------------------------ */
 function PasoPatrimonio({ patrimonio, setPatrimonio, errores, patrimonioLiquido, patrimonioLiquidoAnterior }) {
   const set = (campo) => (e) => setPatrimonio((p) => ({ ...p, [campo]: e.target.value }));
+
+  const totalActivos2025 = useMemo(() => {
+    return [
+      "efectivoBancos", "inversiones", "cuentasCobrar",
+      "inventarios", "propiedades", "vehiculos",
+      "otrosActivos",
+    ].reduce((s, k) => s + (parseFloat(patrimonio[k]) || 0), 0);
+  }, [patrimonio]);
+
+  const totalPasivos2025 = useMemo(() => {
+    return ["deudasBancarias", "deudasPersonas", "otrosPasivos"]
+      .reduce((s, k) => s + (parseFloat(patrimonio[k]) || 0), 0);
+  }, [patrimonio]);
+
   return (
     <div>
       <TituloPaso titulo="2. Patrimonio" subtitulo="Bienes, derechos y obligaciones apreciables en dinero poseídos a 31 de diciembre de 2025." />
-      <SubBloque titulo="Año anterior (2024) — referencia para renta presuntiva y comparación patrimonial">
+
+      {/* Año anterior */}
+      <SubBloque titulo="Año anterior (2024) — referencia para renta presuntiva">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
           <Campo label="Patrimonio bruto 2024" ayuda="Casilla informada en la declaración del año anterior.">
             <TextInput type="number" prefix="$" value={patrimonio.activosBrutoAnterior} onChange={set("activosBrutoAnterior")} />
@@ -282,29 +292,87 @@ function PasoPatrimonio({ patrimonio, setPatrimonio, errores, patrimonioLiquido,
             <TextInput type="number" prefix="$" value={patrimonio.pasivoAnterior} onChange={set("pasivoAnterior")} />
           </Campo>
         </div>
-        <MiniResultado label="Patrimonio líquido 2024" valor={patrimonioLiquidoAnterior} nota="Base para el cálculo de la renta presuntiva del año 2025." />
+        <MiniResultado label="Patrimonio líquido 2024" valor={patrimonioLiquidoAnterior} nota="Base para el cálculo de la renta presuntiva 2025." />
       </SubBloque>
-      <SubBloque titulo="Año gravable 2025">
+
+      {/* Activos 2025 — desglosados */}
+      <SubBloque titulo="Activos — año gravable 2025">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-          <Campo label="Patrimonio bruto" required casilla="72" error={errores.activosBruto} ayuda="Suma de efectivo, inversiones, inventarios, activos fijos y bienes en moneda extranjera.">
-            <TextInput type="number" prefix="$" value={patrimonio.activosBruto} onChange={set("activosBruto")} hasError={!!errores.activosBruto} />
+          <Campo label="Efectivo y depósitos en bancos" casilla="72" ayuda="Saldos en cuentas corrientes, de ahorro y efectivo en caja a 31-dic-2025.">
+            <TextInput type="number" prefix="$" value={patrimonio.efectivoBancos} onChange={set("efectivoBancos")} />
           </Campo>
-          <Campo label="Pasivos / deudas" casilla="73" error={errores.pasivos}>
-            <TextInput type="number" prefix="$" value={patrimonio.pasivos} onChange={set("pasivos")} hasError={!!errores.pasivos} />
+          <Campo label="Inversiones" ayuda="CDT, acciones, fondos de inversión, bonos, carteras colectivas y similares.">
+            <TextInput type="number" prefix="$" value={patrimonio.inversiones} onChange={set("inversiones")} />
+          </Campo>
+          <Campo label="Cuentas por cobrar" ayuda="Deudas que terceros le deben al declarante (préstamos a particulares, anticipos, etc.).">
+            <TextInput type="number" prefix="$" value={patrimonio.cuentasCobrar} onChange={set("cuentasCobrar")} />
+          </Campo>
+          <Campo label="Inventarios" ayuda="Solo aplica si el declarante tiene actividad comercial o agropecuaria. Valor en libros.">
+            <TextInput type="number" prefix="$" value={patrimonio.inventarios} onChange={set("inventarios")} />
+          </Campo>
+          <Campo label="Propiedades (inmuebles)" ayuda="Casas, apartamentos, locales, lotes y fincas. Use el mayor valor entre costo fiscal, avalúo catastral y autoavalúo.">
+            <TextInput type="number" prefix="$" value={patrimonio.propiedades} onChange={set("propiedades")} />
+          </Campo>
+          <Campo label="Vehículos" ayuda="Valor comercial a 31 de diciembre de 2025 según el Ministerio de Transporte.">
+            <TextInput type="number" prefix="$" value={patrimonio.vehiculos} onChange={set("vehiculos")} />
+          </Campo>
+          <Campo label="Otros activos" ayuda="Muebles, equipos, semovientes, derechos fiduciarios, y cualquier bien no incluido arriba.">
+            <TextInput type="number" prefix="$" value={patrimonio.otrosActivos} onChange={set("otrosActivos")} />
           </Campo>
         </div>
-        <MiniResultado label="Patrimonio líquido 2025" valor={patrimonioLiquido} tono={patrimonioLiquido < 0 ? "negativo" : "positivo"} nota="Patrimonio bruto menos pasivos. Casilla 74 del Formulario 210." />
+        <MiniResultado label="Total patrimonio bruto 2025 (suma automática)" valor={totalActivos2025} nota="Este valor se enviará como patrimonio bruto. También puede ingresarlo directamente abajo si prefiere totales." />
+      </SubBloque>
+
+      {/* Pasivos 2025 */}
+      <SubBloque titulo="Pasivos / deudas — año gravable 2025">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <Campo label="Deudas con entidades financieras" ayuda="Saldo capital de créditos hipotecarios, de consumo, libre inversión y tarjetas de crédito.">
+            <TextInput type="number" prefix="$" value={patrimonio.deudasBancarias} onChange={set("deudasBancarias")} />
+          </Campo>
+          <Campo label="Deudas con personas naturales" ayuda="Préstamos informales o entre particulares debidamente documentados.">
+            <TextInput type="number" prefix="$" value={patrimonio.deudasPersonas} onChange={set("deudasPersonas")} />
+          </Campo>
+          <Campo label="Otros pasivos" ayuda="Deudas con proveedores, anticipos recibidos, impuestos por pagar y otros pasivos no incluidos arriba.">
+            <TextInput type="number" prefix="$" value={patrimonio.otrosPasivos} onChange={set("otrosPasivos")} />
+          </Campo>
+        </div>
+        <MiniResultado label="Total pasivos 2025 (suma automática)" valor={totalPasivos2025} nota="Este valor se enviará como pasivos." />
+      </SubBloque>
+
+      {/* Totales consolidados */}
+      <SubBloque titulo="Resumen consolidado 2025">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <Campo label="Patrimonio bruto total (manual o suma)" required casilla="72" error={errores.activosBruto}
+            ayuda="Se calcula automáticamente desde el desglose. Edite aquí si prefiere ingresar el total directamente.">
+            <TextInput type="number" prefix="$"
+              value={patrimonio.activosBruto !== "" ? patrimonio.activosBruto : (totalActivos2025 > 0 ? String(totalActivos2025) : "")}
+              onChange={set("activosBruto")} hasError={!!errores.activosBruto} />
+          </Campo>
+          <Campo label="Pasivos totales (manual o suma)" casilla="73" error={errores.pasivos}
+            ayuda="Se calcula automáticamente desde el desglose. Edite aquí si prefiere ingresar el total directamente.">
+            <TextInput type="number" prefix="$"
+              value={patrimonio.pasivos !== "" ? patrimonio.pasivos : (totalPasivos2025 > 0 ? String(totalPasivos2025) : "")}
+              onChange={set("pasivos")} hasError={!!errores.pasivos} />
+          </Campo>
+        </div>
+        <MiniResultado
+          label="Patrimonio líquido 2025 — Casilla 74"
+          valor={patrimonioLiquido}
+          tono={patrimonioLiquido < 0 ? "negativo" : "positivo"}
+          nota="Patrimonio bruto menos pasivos. Casilla 74 del Formulario 210."
+        />
       </SubBloque>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* PASO 3 — Ingresos / rentas cedulares                                */
+/* PASO 3 — Rentas cedulares (ampliado)                                */
 /* ------------------------------------------------------------------ */
-function PasoIngresos({ perfil, ingresos, setIngresos, errores, totalIngresosBrutos, totalRetenciones }) {
+function PasoIngresos({ perfil, ingresos, setIngresos, errores, totalIngresosBrutos, totalRetenciones, totalDeducciones }) {
   const set = (campo) => (e) => setIngresos((d) => ({ ...d, [campo]: e.target.value }));
-  const bloques = [
+
+  const bloquesCedulares = [
     { activo: perfil.salarios,   titulo: "Rentas de trabajo — salarios",  campoIngreso: "salarios",   campoReten: "retencionSalarios",   ayuda: "Total de pagos laborales gravados recibidos durante 2025.", errorReten: errores.retencionSalarios },
     { activo: perfil.honorarios, titulo: "Honorarios y servicios",         campoIngreso: "honorarios", campoReten: "retencionHonorarios", ayuda: "Ingresos por servicios profesionales sin relación laboral." },
     { activo: perfil.capital,    titulo: "Rentas de capital",              campoIngreso: "capital",    campoReten: "retencionCapital",    ayuda: "Intereses, arrendamientos y rendimientos financieros." },
@@ -312,10 +380,20 @@ function PasoIngresos({ perfil, ingresos, setIngresos, errores, totalIngresosBru
     { activo: perfil.ganancias,  titulo: "Ganancias ocasionales",          campoIngreso: "ganancias",  campoReten: "retencionGanancias",  ayuda: "Loterías, herencias, ventas de activos fijos poseídos > 2 años." },
   ].filter((b) => b.activo);
 
+  const totalAportesVoluntarios = useMemo(() => {
+    return (parseFloat(ingresos.fondoPension) || 0) + (parseFloat(ingresos.afc) || 0);
+  }, [ingresos.fondoPension, ingresos.afc]);
+
+  const totalSalud = useMemo(() => {
+    return (parseFloat(ingresos.medicinaPrepagada) || 0) + (parseFloat(ingresos.segurosComplementarios) || 0);
+  }, [ingresos.medicinaPrepagada, ingresos.segurosComplementarios]);
+
   return (
     <div>
       <TituloPaso titulo="3. Rentas cedulares" subtitulo="Solo se muestran las cédulas seleccionadas en el paso de perfil." />
-      {bloques.map((b) => (
+
+      {/* Cédulas */}
+      {bloquesCedulares.map((b) => (
         <SubBloque key={b.campoIngreso} titulo={b.titulo}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
             <Campo label="Ingreso bruto del año" ayuda={b.ayuda}>
@@ -327,19 +405,58 @@ function PasoIngresos({ perfil, ingresos, setIngresos, errores, totalIngresosBru
           </div>
         </SubBloque>
       ))}
-      <SubBloque titulo="Deducciones imputables a la cédula general">
+
+      {/* Deducciones — Fondos pensión y AFC separados */}
+      <SubBloque titulo="Deducciones — Aportes voluntarios a pensión y AFC">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-          <Campo label="Aportes voluntarios a fondos de pensión / AFC" ayuda="Deducibles hasta el 30% del ingreso, sin exceder 3.800 UVT.">
-            <TextInput type="number" prefix="$" value={ingresos.aportesVoluntarios} onChange={set("aportesVoluntarios")} />
+          <Campo label="Fondo de pensiones voluntarias" ayuda="Aportes voluntarios a fondos de pensiones privados (art. 126-1 E.T.). Deducibles hasta el 30% del ingreso, máx. 3.800 UVT anuales.">
+            <TextInput type="number" prefix="$" value={ingresos.fondoPension} onChange={set("fondoPension")} />
           </Campo>
-          <Campo label="Medicina prepagada / seguros de salud" ayuda="Deducible hasta 16 UVT mensuales.">
-            <TextInput type="number" prefix="$" value={ingresos.saludPrepagada} onChange={set("saludPrepagada")} />
+          <Campo label="Cuenta AFC (Ahorro para el Fomento de la Construcción)" ayuda="Aportes a cuentas AFC (art. 126-4 E.T.). Comparten el límite del 30% y 3.800 UVT con las pensiones voluntarias.">
+            <TextInput type="number" prefix="$" value={ingresos.afc} onChange={set("afc")} />
+          </Campo>
+        </div>
+        <MiniResultado label="Total aportes voluntarios + AFC" valor={totalAportesVoluntarios}
+          nota="Deducible hasta el 30% del ingreso bruto, sin exceder 3.800 UVT ($189.236.200 para 2025)." />
+      </SubBloque>
+
+      {/* Deducciones — Salud separada */}
+      <SubBloque titulo="Deducciones — Salud y seguros médicos">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <Campo label="Medicina prepagada" ayuda="Pagos anuales por planes de medicina prepagada propios y de su núcleo familiar. Deducible hasta 16 UVT mensuales (192 UVT = $9.561.408 para 2025).">
+            <TextInput type="number" prefix="$" value={ingresos.medicinaPrepagada} onChange={set("medicinaPrepagada")} />
+          </Campo>
+          <Campo label="Seguros de salud complementarios" ayuda="Primas de pólizas de salud y hospitalización distintas a la medicina prepagada. Comparten el tope de 16 UVT mensuales.">
+            <TextInput type="number" prefix="$" value={ingresos.segurosComplementarios} onChange={set("segurosComplementarios")} />
+          </Campo>
+        </div>
+        <MiniResultado label="Total deducción salud" valor={totalSalud}
+          nota="Tope conjunto: 192 UVT anuales ($9.561.408 para 2025)." />
+      </SubBloque>
+
+      {/* Otras deducciones */}
+      <SubBloque titulo="Otras deducciones">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <Campo label="Intereses de crédito hipotecario" ayuda="Intereses pagados durante 2025 por créditos de vivienda (art. 119 E.T.). Tope: 1.200 UVT anuales ($59.758.800 para 2025). Comparte tope con ICETEX.">
+            <TextInput type="number" prefix="$" value={ingresos.interesesVivienda} onChange={set("interesesVivienda")} />
+          </Campo>
+          <Campo label="Créditos ICETEX" ayuda="Intereses pagados a ICETEX por créditos educativos (art. 119 E.T.). Comparte tope de 1.200 UVT con créditos hipotecarios.">
+            <TextInput type="number" prefix="$" value={ingresos.icetex} onChange={set("icetex")} />
+          </Campo>
+          <Campo label="Dependientes económicos" ayuda="Deducción del 10% del ingreso bruto, máx. 32 UVT mensuales (384 UVT = $19.122.816 para 2025). Art. 387 E.T.">
+            <TextInput type="number" prefix="$" value={ingresos.dependientes} onChange={set("dependientes")} />
+          </Campo>
+          <Campo label="Donaciones (descuento tributario 25%)" ayuda="Donaciones a entidades del art. 257 E.T. El descuento es el 25% del valor donado, con límite del 30% del impuesto básico.">
+            <TextInput type="number" prefix="$" value={ingresos.donaciones} onChange={set("donaciones")} />
           </Campo>
         </div>
       </SubBloque>
-      <div style={{ display: "flex", gap: 24, marginTop: 4 }}>
+
+      {/* Totales */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginTop: 8 }}>
         <Metrica label="Total ingresos brutos" valor={totalIngresosBrutos} />
         <Metrica label="Total retenciones" valor={totalRetenciones} tono="acento" />
+        <Metrica label="Total deducciones" valor={totalDeducciones} tono="positivo" />
       </div>
     </div>
   );
@@ -365,10 +482,11 @@ function PasoPresuntiva({ patrimonioLiquidoAnterior, rentaPresuntivaPesos, renta
 }
 
 /* ------------------------------------------------------------------ */
-/* PASO 5 — Liquidación (resultado desde la API)                       */
+/* PASO 5 — Liquidación (resultado desde la API + persistida)         */
 /* ------------------------------------------------------------------ */
-function PasoLiquidacion({ resultadoApi, cargandoApi, errorApi, uvt }) {
-  const uvtUsada = uvt || UVT_2025_FALLBACK;
+function PasoLiquidacion({ resultadoApi, cargandoApi, errorApi, uvt, persistida, parametros }) {
+  const uvtUsada = uvt || parametros?.uvt || PARAMETROS_FALLBACK.uvt;
+  const tablaDisplay = parametros?.tabla_tarifa_uvt || PARAMETROS_FALLBACK.tabla_tarifa_uvt;
 
   if (cargandoApi) {
     return (
@@ -376,7 +494,6 @@ function PasoLiquidacion({ resultadoApi, cargandoApi, errorApi, uvt }) {
         <TituloPaso titulo="7. Liquidación privada" />
         <div style={{ padding: "48px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "#8A7F68" }}>
           <Loader size={28} style={{ animation: "spin 1s linear infinite" }} />
-          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
           <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 14 }}>Calculando liquidación desde el servidor…</span>
           <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: "#B0A896" }}>Usando parámetros tributarios activos en la base de datos.</span>
         </div>
@@ -395,10 +512,10 @@ function PasoLiquidacion({ resultadoApi, cargandoApi, errorApi, uvt }) {
     );
   }
 
-  const rlg = resultadoApi?.renta_liquida_gravable_pesos ?? 0;
-  const iac = resultadoApi?.impuesto_a_cargo_pesos ?? 0;
-  const ret = resultadoApi?.total_retenciones_pesos ?? 0;
-  const saldo = resultadoApi?.saldo_pesos ?? 0;
+  const rlg    = resultadoApi?.renta_liquida_gravable_pesos ?? 0;
+  const iac    = resultadoApi?.impuesto_a_cargo_pesos ?? 0;
+  const ret    = resultadoApi?.total_retenciones_pesos ?? 0;
+  const saldo  = resultadoApi?.saldo_pesos ?? 0;
   const esPagar = resultadoApi?.es_saldo_a_pagar ?? (saldo >= 0);
 
   return (
@@ -419,7 +536,7 @@ function PasoLiquidacion({ resultadoApi, cargandoApi, errorApi, uvt }) {
             </tr>
           </thead>
           <tbody>
-            {TABLA_TARIFA_DISPLAY.map((t, i) => {
+            {tablaDisplay.map((t, i) => {
               const enUVT = rlg / uvtUsada;
               const activo = enUVT > t.desde && enUVT <= t.hasta;
               return (
@@ -442,6 +559,7 @@ function PasoLiquidacion({ resultadoApi, cargandoApi, errorApi, uvt }) {
       <div style={{ marginTop: 16, fontSize: 11.5, color: "#B0A896", fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", gap: 5 }}>
         <Check size={12} color="#4B7B5D" />
         Cálculo realizado por el motor de reglas del servidor · parámetros 2025 activos en BD.
+        {persistida && <span style={{ marginLeft: 8, color: "#4B7B5D" }}>· Resultado guardado en el periodo gravable.</span>}
       </div>
     </div>
   );
@@ -450,20 +568,21 @@ function PasoLiquidacion({ resultadoApi, cargandoApi, errorApi, uvt }) {
 /* ------------------------------------------------------------------ */
 /* PASO 6 — Resumen                                                    */
 /* ------------------------------------------------------------------ */
-function PasoResumen({ datos, patrimonioLiquido, totalIngresosBrutos, resultadoApi, periodoId, guardandoFinal, errorFinal }) {
-  const rlg   = resultadoApi?.renta_liquida_gravable_pesos ?? 0;
-  const iac   = resultadoApi?.impuesto_a_cargo_pesos ?? 0;
-  const ret   = resultadoApi?.total_retenciones_pesos ?? 0;
-  const saldo = resultadoApi?.saldo_pesos ?? 0;
+function PasoResumen({ datos, patrimonioLiquido, totalIngresosBrutos, totalDeducciones, resultadoApi, periodoId, guardandoFinal, errorFinal }) {
+  const rlg    = resultadoApi?.renta_liquida_gravable_pesos ?? 0;
+  const iac    = resultadoApi?.impuesto_a_cargo_pesos ?? 0;
+  const ret    = resultadoApi?.total_retenciones_pesos ?? 0;
+  const saldo  = resultadoApi?.saldo_pesos ?? 0;
   const esPagar = resultadoApi?.es_saldo_a_pagar ?? (saldo >= 0);
 
   const filas = [
-    { label: "Declarante",             valor: `${datos.primerNombre || "—"} ${datos.primerApellido || ""}` },
-    { label: "NIT",                    valor: datos.nit || "—" },
+    { label: "Declarante",              valor: `${datos.primerNombre || "—"} ${datos.primerApellido || ""}` },
+    { label: "NIT",                     valor: datos.nit || "—" },
     { label: "Patrimonio líquido 2025", valor: formatCOP(patrimonioLiquido) },
-    { label: "Total ingresos brutos",  valor: formatCOP(totalIngresosBrutos) },
-    { label: "Renta líquida gravable", valor: formatCOP(rlg) },
-    { label: "Impuesto a cargo",       valor: formatCOP(iac) },
+    { label: "Total ingresos brutos",   valor: formatCOP(totalIngresosBrutos) },
+    { label: "Total deducciones",       valor: formatCOP(totalDeducciones) },
+    { label: "Renta líquida gravable",  valor: formatCOP(rlg) },
+    { label: "Impuesto a cargo",        valor: formatCOP(iac) },
     { label: "Retenciones practicadas", valor: formatCOP(ret) },
   ];
 
@@ -494,7 +613,6 @@ function PasoResumen({ datos, patrimonioLiquido, totalIngresosBrutos, resultadoA
           Periodo gravable guardado en la base de datos (ID: {periodoId.slice(0, 8)}…)
         </div>
       )}
-
       {guardandoFinal && <div style={{ marginTop: 8 }}><Spinner texto="Marcando periodo como en revisión…" /></div>}
       {errorFinal && (
         <div style={{ marginTop: 8, background: "#FBEAE8", border: "1px solid #F0C7C2", color: "#8C231C", fontSize: 12.5, borderRadius: 8, padding: "8px 12px", fontFamily: "'Inter', sans-serif" }}>
@@ -509,215 +627,310 @@ function PasoResumen({ datos, patrimonioLiquido, totalIngresosBrutos, resultadoA
 /* WIZARD PRINCIPAL                                                    */
 /* ------------------------------------------------------------------ */
 export default function DeclaracionRentaWizard({ sesion, declarante, onVolver, onSesionExpirada }) {
-  const [pasoActivo, setPasoActivo] = useState(0);
-  const [errores, setErrores] = useState({});
-  const [tocado, setTocado] = useState({});
+  const [pasoActivo, setPasoActivo]     = useState(0);
+  const [errores, setErrores]           = useState({});
+  const [tocado, setTocado]             = useState({});
 
-  // IDs de los registros ya creados en BD
+  // IDs persistidos
   const [declaranteId, setDeclaranteId] = useState(declarante?.id || null);
-  const [periodoId, setPeriodoId] = useState(null);
+  const [periodoId, setPeriodoId]       = useState(null);
 
-  // Estado de llamadas API
-  const [guardando, setGuardando] = useState(false);
-  const [errorApi, setErrorApi] = useState(null);
+  // Act. 1.4 — parámetros tributarios desde la API (reemplaza constantes hardcodeadas)
+  const [parametros, setParametros] = useState(PARAMETROS_FALLBACK);
+  useEffect(() => {
+    obtenerParametrosPublicos(sesion.token, ANIO_GRAVABLE)
+      .then(p => setParametros(p))
+      .catch(() => {
+        // Si la API falla, se mantienen los valores de PARAMETROS_FALLBACK.
+        // Esto ocurre si la BD no tiene parámetros cargados aún.
+        console.warn(`[wizard] No se pudieron cargar parámetros ${ANIO_GRAVABLE} — usando fallback.`);
+      });
+  }, [sesion.token]);
 
-  // Resultado de liquidación desde el servidor
+  // Estado API
+  const [guardando, setGuardando]         = useState(false);
+  const [errorApi, setErrorApi]           = useState(null);
   const [resultadoLiquidacion, setResultadoLiquidacion] = useState(null);
-  const [cargandoLiquidacion, setCargandoLiquidacion] = useState(false);
-  const [errorLiquidacion, setErrorLiquidacion] = useState(null);
-
-  // Estado del resumen final
+  const [cargandoLiquidacion, setCargandoLiquidacion]   = useState(false);
+  const [errorLiquidacion, setErrorLiquidacion]         = useState(null);
+  const [liquidacionPersistida, setLiquidacionPersistida] = useState(false);
   const [guardandoFinal, setGuardandoFinal] = useState(false);
-  const [errorFinal, setErrorFinal] = useState(null);
+  const [errorFinal, setErrorFinal]         = useState(null);
 
   // Formularios
   const [perfil, setPerfil] = useState({ salarios: true, honorarios: false, capital: false, pensiones: false, ganancias: false });
-
-  // Pre-cargar datos desde el declarante seleccionado
-  const [datos, setDatos] = useState({
-    nit:                 declarante?.nit || "",
-    dv:                  declarante?.digito_verificacion || "",
-    primerApellido:      declarante?.primer_apellido || "",
-    primerNombre:        declarante?.primer_nombre || "",
-    actividadEconomica:  declarante?.actividad_economica || "",
-    aniosDeclarando:     "",
-    impuestoNetoAnterior: "",
-    dependientes:        "0",
+  const [datos, setDatos]   = useState({
+    nit: declarante?.nit || "", dv: declarante?.digito_verificacion || "",
+    primerApellido: declarante?.primer_apellido || "", primerNombre: declarante?.primer_nombre || "",
+    actividadEconomica: declarante?.actividad_economica || "",
+    aniosDeclarando: "", impuestoNetoAnterior: "", dependientes: "0",
+  });
+  const [patrimonio, setPatrimonio] = useState({
+    // año anterior
+    activosBrutoAnterior: "", pasivoAnterior: "",
+    // activos 2025 desglosados
+    efectivoBancos: "", inversiones: "", cuentasCobrar: "",
+    inventarios: "", propiedades: "", vehiculos: "", otrosActivos: "",
+    // pasivos 2025 desglosados
+    deudasBancarias: "", deudasPersonas: "", otrosPasivos: "",
+    // totales manuales (sobreescriben la suma si se editan)
+    activosBruto: "", pasivos: "",
+  });
+  const [ingresos, setIngresos] = useState({
+    // cédulas
+    salarios: "", retencionSalarios: "",
+    honorarios: "", retencionHonorarios: "",
+    capital: "", retencionCapital: "",
+    pensiones: "", retencionPensiones: "",
+    ganancias: "", retencionGanancias: "",
+    // deducciones — pensión y AFC separados
+    fondoPension: "", afc: "",
+    // deducciones — salud separada
+    medicinaPrepagada: "", segurosComplementarios: "",
+    // otras deducciones
+    interesesVivienda: "", icetex: "", dependientes: "", donaciones: "",
   });
 
-  const [patrimonio, setPatrimonio] = useState({ activosBrutoAnterior: "", pasivoAnterior: "", activosBruto: "", pasivos: "" });
-  const [ingresos, setIngresos] = useState({ salarios: "", retencionSalarios: "", honorarios: "", retencionHonorarios: "", capital: "", retencionCapital: "", pensiones: "", retencionPensiones: "", ganancias: "", retencionGanancias: "", aportesVoluntarios: "", saludPrepagada: "" });
+  /* ---- Cálculos derivados ---- */
+  const patrimonioLiquidoAnterior = useMemo(() =>
+    (parseFloat(patrimonio.activosBrutoAnterior) || 0) - (parseFloat(patrimonio.pasivoAnterior) || 0),
+  [patrimonio]);
 
-  /* ---- Cálculos derivados (para pasos intermedios y resumen) ---- */
-  const patrimonioLiquidoAnterior = useMemo(() => (parseFloat(patrimonio.activosBrutoAnterior) || 0) - (parseFloat(patrimonio.pasivoAnterior) || 0), [patrimonio]);
-  const patrimonioLiquido = useMemo(() => (parseFloat(patrimonio.activosBruto) || 0) - (parseFloat(patrimonio.pasivos) || 0), [patrimonio]);
+  // Usar total manual si fue editado, si no, usar la suma del desglose
+  const totalActivos2025 = useMemo(() =>
+    ["efectivoBancos","inversiones","cuentasCobrar","inventarios","propiedades","vehiculos","otrosActivos"]
+      .reduce((s, k) => s + (parseFloat(patrimonio[k]) || 0), 0),
+  [patrimonio]);
 
-  const totalIngresosBrutos = useMemo(() => {
-    return [perfil.salarios && ingresos.salarios, perfil.honorarios && ingresos.honorarios, perfil.capital && ingresos.capital, perfil.pensiones && ingresos.pensiones, perfil.ganancias && ingresos.ganancias]
-      .reduce((acc, v) => acc + (parseFloat(v) || 0), 0);
-  }, [ingresos, perfil]);
+  const totalPasivos2025 = useMemo(() =>
+    ["deudasBancarias","deudasPersonas","otrosPasivos"]
+      .reduce((s, k) => s + (parseFloat(patrimonio[k]) || 0), 0),
+  [patrimonio]);
 
-  const totalRetenciones = useMemo(() => {
-    return [perfil.salarios && ingresos.retencionSalarios, perfil.honorarios && ingresos.retencionHonorarios, perfil.capital && ingresos.retencionCapital, perfil.pensiones && ingresos.retencionPensiones, perfil.ganancias && ingresos.retencionGanancias]
-      .reduce((acc, v) => acc + (parseFloat(v) || 0), 0);
-  }, [ingresos, perfil]);
+  const patrimonioBrutoEfectivo = parseFloat(patrimonio.activosBruto) || totalActivos2025;
+  const pasivosEfectivos        = parseFloat(patrimonio.pasivos)       || totalPasivos2025;
+  const patrimonioLiquido       = patrimonioBrutoEfectivo - pasivosEfectivos;
 
-  const deduccionesImputables = useMemo(() => (parseFloat(ingresos.aportesVoluntarios) || 0) + (parseFloat(ingresos.saludPrepagada) || 0), [ingresos]);
+  const totalIngresosBrutos = useMemo(() =>
+    [perfil.salarios && ingresos.salarios, perfil.honorarios && ingresos.honorarios,
+     perfil.capital && ingresos.capital, perfil.pensiones && ingresos.pensiones,
+     perfil.ganancias && ingresos.ganancias]
+      .reduce((acc, v) => acc + (parseFloat(v) || 0), 0),
+  [ingresos, perfil]);
+
+  const totalRetenciones = useMemo(() =>
+    [perfil.salarios && ingresos.retencionSalarios, perfil.honorarios && ingresos.retencionHonorarios,
+     perfil.capital && ingresos.retencionCapital, perfil.pensiones && ingresos.retencionPensiones,
+     perfil.ganancias && ingresos.retencionGanancias]
+      .reduce((acc, v) => acc + (parseFloat(v) || 0), 0),
+  [ingresos, perfil]);
+
+  const totalDeducciones = useMemo(() =>
+    ["fondoPension","afc","medicinaPrepagada","segurosComplementarios",
+     "interesesVivienda","icetex","dependientes","donaciones"]
+      .reduce((acc, k) => acc + (parseFloat(ingresos[k]) || 0), 0),
+  [ingresos]);
 
   const rentaExentaLaboral = useMemo(() => {
-    const base = (parseFloat(ingresos.salarios) || 0) * 0.25;
-    return Math.min(base, 790 * UVT_2025_FALLBACK);
-  }, [ingresos]);
+    const uvt = parametros.uvt;
+    const tope = parametros.tope_renta_exenta_laboral_uvt;
+    const pct  = parametros.porcentaje_renta_exenta_laboral;
+    const base = (parseFloat(ingresos.salarios) || 0) * pct;
+    return Math.min(base, tope * uvt);
+  }, [ingresos.salarios, parametros]);
 
-  const limiteExenciones40 = useMemo(() => Math.min(totalIngresosBrutos * 0.4, 1340 * UVT_2025_FALLBACK), [totalIngresosBrutos]);
-  const exencionesAplicadas = Math.min(deduccionesImputables + rentaExentaLaboral, limiteExenciones40);
+  const limiteExenciones40 = useMemo(() => {
+    const uvt = parametros.uvt;
+    const tope = parametros.tope_renta_exenta_deducciones_uvt;
+    const pct  = parametros.limite_renta_exenta_deducciones_porcentaje;
+    return Math.min(totalIngresosBrutos * pct, tope * uvt);
+  }, [totalIngresosBrutos, parametros]);
+  const exencionesAplicadas = Math.min(totalDeducciones + rentaExentaLaboral, limiteExenciones40);
   const rentaLiquidaCedular = Math.max(totalIngresosBrutos - exencionesAplicadas, 0);
-  const rentaPresuntivaPesos = 0; // tarifa 0% año 2025
+  const rentaPresuntivaPesos = 0;
 
-  /* ---- Llamada a la API de liquidación al entrar al paso 5 ---- */
-  const llamarLiquidacion = useCallback(async () => {
+  /* ---- FIX 2: recuperar periodo existente al abrir el wizard ---- */
+  useEffect(() => {
+    if (!declarante?.id || periodoId) return;
+    (async () => {
+      try {
+        const periodos = await listarPeriodos(sesion.token, declarante.id);
+        const p2025 = periodos.find((p) => p.anio === 2025);
+        if (p2025) setPeriodoId(p2025.id);
+      } catch (_) { /* no bloquea */ }
+    })();
+  }, [declarante?.id, sesion.token, periodoId]);
+
+  /* ---- Liquidación + persistencia (FIX 3) ---- */
+  const llamarLiquidacion = useCallback(async (decId, perId) => {
     setCargandoLiquidacion(true);
     setErrorLiquidacion(null);
+    setLiquidacionPersistida(false);
     try {
       const resultado = await calcularLiquidacion(sesion.token, {
-        anio_gravable:                    2025,
-        total_ingresos_brutos_pesos:      totalIngresosBrutos,
-        deducciones_imputables_pesos:     deduccionesImputables,
-        ingreso_salarios_pesos:           parseFloat(ingresos.salarios) || 0,
-        total_retenciones_pesos:          totalRetenciones,
+        anio_gravable: 2025,
+        total_ingresos_brutos_pesos:       totalIngresosBrutos,
+        deducciones_imputables_pesos:      totalDeducciones,
+        ingreso_salarios_pesos:            parseFloat(ingresos.salarios) || 0,
+        total_retenciones_pesos:           totalRetenciones,
         patrimonio_liquido_anterior_pesos: patrimonioLiquidoAnterior,
+        periodo_id:                        perId || periodoId || null,
       });
       setResultadoLiquidacion(resultado);
+      if (resultado.persistido) setLiquidacionPersistida(true);
     } catch (err) {
       if (err.code === "UNAUTHORIZED") { onSesionExpirada(); return; }
       setErrorLiquidacion(err.message);
     } finally {
       setCargandoLiquidacion(false);
     }
-  }, [sesion.token, totalIngresosBrutos, deduccionesImputables, ingresos.salarios, totalRetenciones, patrimonioLiquidoAnterior, onSesionExpirada]);
+  }, [sesion.token, totalIngresosBrutos, totalDeducciones, ingresos.salarios, totalRetenciones, patrimonioLiquidoAnterior, periodoId, onSesionExpirada]);
 
   /* ---- Validaciones por paso ---- */
   function validarPaso(idx) {
     const err = {};
-    const id = PASOS[idx].id;
+    const id  = PASOS[idx].id;
     if (id === "datos") {
       if (!datos.nit || !/^\d{6,10}$/.test(datos.nit)) err.nit = "El NIT debe tener entre 6 y 10 dígitos, sin puntos ni guiones.";
       if (!datos.primerApellido) err.primerApellido = "Este campo es obligatorio.";
-      if (!datos.primerNombre) err.primerNombre = "Este campo es obligatorio.";
+      if (!datos.primerNombre)   err.primerNombre   = "Este campo es obligatorio.";
       if (!datos.actividadEconomica) err.actividadEconomica = "Seleccione el código de actividad económica del RUT.";
       if (datos.aniosDeclarando && parseInt(datos.aniosDeclarando) < 0) err.aniosDeclarando = "El número de años no puede ser negativo.";
     }
     if (id === "patrimonio") {
-      if (patrimonio.activosBruto === "") err.activosBruto = "Indique el valor total de su patrimonio bruto, aunque sea cero.";
-      if (patrimonio.pasivos !== "" && parseFloat(patrimonio.pasivos) > parseFloat(patrimonio.activosBruto || 0)) err.pasivos = "Los pasivos no pueden superar el total de activos brutos.";
+      const bruto = parseFloat(patrimonio.activosBruto) || totalActivos2025;
+      const pas   = parseFloat(patrimonio.pasivos)       || totalPasivos2025;
+      if (!bruto && bruto !== 0) err.activosBruto = "Indique el valor total de su patrimonio bruto, aunque sea cero.";
+      if (pas > bruto) err.pasivos = "Los pasivos no pueden superar el total de activos brutos.";
     }
     if (id === "ingresos") {
-      const alguno = (perfil.salarios && ingresos.salarios) || (perfil.honorarios && ingresos.honorarios) || (perfil.capital && ingresos.capital) || (perfil.pensiones && ingresos.pensiones) || (perfil.ganancias && ingresos.ganancias);
+      const alguno = (perfil.salarios && ingresos.salarios) || (perfil.honorarios && ingresos.honorarios) ||
+        (perfil.capital && ingresos.capital) || (perfil.pensiones && ingresos.pensiones) || (perfil.ganancias && ingresos.ganancias);
       if (!alguno) err.general = "Diligencie al menos un valor de ingreso para las cédulas seleccionadas.";
-      if (perfil.salarios && parseFloat(ingresos.retencionSalarios || 0) > parseFloat(ingresos.salarios || 0)) err.retencionSalarios = "La retención no puede ser mayor al ingreso bruto de esta cédula.";
+      if (perfil.salarios && parseFloat(ingresos.retencionSalarios || 0) > parseFloat(ingresos.salarios || 0))
+        err.retencionSalarios = "La retención no puede ser mayor al ingreso bruto de esta cédula.";
     }
     return err;
   }
 
   /* ---- Persistencia en BD al avanzar ---- */
   async function persistirSiCorresponde(pasoId) {
-    // Paso datos → crear declarante si no existe aún
+    // PASO DATOS: crear declarante si no existe, o recuperar su ID si ya existe
     if (pasoId === "datos" && !declaranteId) {
-      setGuardando(true);
-      setErrorApi(null);
+      setGuardando(true); setErrorApi(null);
       try {
         const nuevo = await crearDeclarante(sesion.token, {
-          nit:                datos.nit,
-          digito_verificacion: datos.dv || "0",
-          primer_nombre:      datos.primerNombre,
-          primer_apellido:    datos.primerApellido,
+          nit: datos.nit, digito_verificacion: datos.dv || "0",
+          primer_nombre: datos.primerNombre, primer_apellido: datos.primerApellido,
           actividad_economica: datos.actividadEconomica,
         });
         setDeclaranteId(nuevo.id);
+        return { ok: true, decId: nuevo.id };
       } catch (err) {
-        if (err.code === "UNAUTHORIZED") { onSesionExpirada(); return false; }
-        // 409: el declarante ya existe — cargar su ID desde el mensaje no es posible
-        // sin un GET por NIT, pero el wizard puede continuar con datos locales
-        if (!err.message.includes("409") && !err.message.toLowerCase().includes("ya existe")) {
-          setErrorApi(`No se pudo guardar el declarante: ${err.message}`);
-          return false;
+        if (err.code === "UNAUTHORIZED") { onSesionExpirada(); return { ok: false }; }
+        // FIX 1: si ya existe, buscar su ID por NIT via listar y filtrar
+        if (err.message.includes("409") || err.message.toLowerCase().includes("ya existe")) {
+          try {
+            const lista = await fetch(`http://localhost:8000/declarantes`, {
+              headers: { Authorization: `Bearer ${sesion.token}` },
+            }).then((r) => r.json());
+            const encontrado = lista.find((d) => d.nit === datos.nit);
+            if (encontrado) {
+              setDeclaranteId(encontrado.id);
+              return { ok: true, decId: encontrado.id };
+            }
+          } catch (_) {}
+          setErrorApi("El declarante ya existe pero no se pudo recuperar su ID. Selecciónalo desde el listado.");
+          return { ok: false };
         }
-        // Si ya existe, continuamos; el ID se asignará si se navega desde el listado
+        setErrorApi(`No se pudo guardar el declarante: ${err.message}`);
+        return { ok: false };
       } finally {
         setGuardando(false);
       }
     }
 
-    // Paso patrimonio → crear periodo gravable
-    if (pasoId === "patrimonio" && !periodoId) {
+    // PASO PATRIMONIO: crear periodo o recuperar existente
+    if (pasoId === "patrimonio") {
       const idAUsar = declaranteId;
-      if (!idAUsar) return true; // sin ID no podemos guardar, pero no bloqueamos
-      setGuardando(true);
-      setErrorApi(null);
+      if (!idAUsar) return { ok: true };
+
+      // FIX 2: si ya tenemos periodoId (recuperado al abrir) actualizar en vez de crear
+      if (periodoId) {
+        setGuardando(true); setErrorApi(null);
+        try {
+          await actualizarPeriodo(sesion.token, idAUsar, periodoId, {
+            patrimonio_bruto: patrimonioBrutoEfectivo,
+            pasivos: pasivosEfectivos,
+          });
+        } catch (err) {
+          if (err.code === "UNAUTHORIZED") { onSesionExpirada(); return { ok: false }; }
+          setErrorApi(`No se pudo actualizar el patrimonio: ${err.message}`);
+          return { ok: false };
+        } finally {
+          setGuardando(false);
+        }
+        return { ok: true, perId: periodoId };
+      }
+
+      setGuardando(true); setErrorApi(null);
       try {
         const periodo = await crearPeriodo(sesion.token, idAUsar, {
           anio: 2025,
-          patrimonio_bruto: parseFloat(patrimonio.activosBruto) || 0,
-          pasivos:          parseFloat(patrimonio.pasivos) || 0,
+          patrimonio_bruto: patrimonioBrutoEfectivo,
+          pasivos: pasivosEfectivos,
         });
         setPeriodoId(periodo.id);
+        return { ok: true, perId: periodo.id };
       } catch (err) {
-        if (err.code === "UNAUTHORIZED") { onSesionExpirada(); return false; }
+        if (err.code === "UNAUTHORIZED") { onSesionExpirada(); return { ok: false }; }
         if (err.message.toLowerCase().includes("ya tiene un periodo")) {
-          // El periodo ya existe; no es un error real, seguimos
-        } else {
-          setErrorApi(`No se pudo guardar el patrimonio: ${err.message}`);
-          return false;
+          // Recuperar el periodo existente
+          try {
+            const periodos = await listarPeriodos(sesion.token, idAUsar);
+            const p2025 = periodos.find((p) => p.anio === 2025);
+            if (p2025) { setPeriodoId(p2025.id); return { ok: true, perId: p2025.id }; }
+          } catch (_) {}
         }
+        setErrorApi(`No se pudo guardar el patrimonio: ${err.message}`);
+        return { ok: false };
       } finally {
         setGuardando(false);
       }
     }
 
-    return true;
+    return { ok: true };
   }
 
   async function irSiguiente() {
     const err = validarPaso(pasoActivo);
-    setErrores(err);
-    setTocado((t) => ({ ...t, [pasoActivo]: true }));
+    setErrores(err); setTocado((t) => ({ ...t, [pasoActivo]: true }));
     if (Object.keys(err).length > 0) return;
 
     const pasoId = PASOS[pasoActivo].id;
-    const ok = await persistirSiCorresponde(pasoId);
-    if (!ok) return;
+    const resultado = await persistirSiCorresponde(pasoId);
+    if (!resultado.ok) return;
 
     const siguienteIdx = Math.min(pasoActivo + 1, PASOS.length - 1);
 
-    // Si el siguiente paso es liquidación, llamar a la API
     if (PASOS[siguienteIdx].id === "liquidacion") {
-      setPasoActivo(siguienteIdx);
-      setErrores({});
-      await llamarLiquidacion();
+      setPasoActivo(siguienteIdx); setErrores({});
+      await llamarLiquidacion(resultado.decId, resultado.perId);
       return;
     }
 
-    setPasoActivo(siguienteIdx);
-    setErrores({});
+    setPasoActivo(siguienteIdx); setErrores({});
   }
 
-  function irAtras() {
-    setErrores({});
-    setPasoActivo((p) => Math.max(p - 1, 0));
-  }
+  function irAtras() { setErrores({}); setPasoActivo((p) => Math.max(p - 1, 0)); }
+  function irAPaso(idx) { if (idx <= pasoActivo || tocado[pasoActivo]) { setErrores({}); setPasoActivo(idx); } }
 
-  function irAPaso(idx) {
-    if (idx <= pasoActivo || tocado[pasoActivo]) { setErrores({}); setPasoActivo(idx); }
-  }
-
-  /* ---- Acción final: marcar como en revisión ---- */
   async function marcarEnRevision() {
     if (!periodoId || !declaranteId) return;
-    setGuardandoFinal(true);
-    setErrorFinal(null);
+    setGuardandoFinal(true); setErrorFinal(null);
     try {
       await actualizarPeriodo(sesion.token, declaranteId, periodoId, { estado: "en_revision" });
-      onVolver(); // Vuelve al listado
+      onVolver();
     } catch (err) {
       if (err.code === "UNAUTHORIZED") { onSesionExpirada(); return; }
       setErrorFinal(err.message);
@@ -726,15 +939,15 @@ export default function DeclaracionRentaWizard({ sesion, declarante, onVolver, o
     }
   }
 
-  const idPaso = PASOS[pasoActivo].id;
+  const idPaso     = PASOS[pasoActivo].id;
   const esUltimoPaso = pasoActivo === PASOS.length - 1;
 
-  /* ---------------------------------------------------------------- */
+  /* ---- Render ---- */
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: "#F7F3EA", minHeight: "100vh", color: "#23201A" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap'); * { box-sizing: border-box; } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
-      {/* Header con breadcrumb */}
+      {/* Header */}
       <div style={{ background: "#FFF", borderBottom: "1px solid #EAE4D4", padding: "12px 32px", display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={onVolver} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "#8A7F68", fontSize: 13, fontFamily: "'Inter', sans-serif", padding: 0 }}>
           <ArrowLeft size={14} /> Declarantes
@@ -744,14 +957,13 @@ export default function DeclaracionRentaWizard({ sesion, declarante, onVolver, o
           {datos.primerApellido ? `${datos.primerApellido}, ${datos.primerNombre}` : "Nuevo declarante"}
         </span>
         {periodoId && (
-          <span style={{ marginLeft: "auto", fontSize: 11.5, color: "#8A7F68", fontFamily: "'Inter', sans-serif" }}>
-            Periodo 2025 · guardado
+          <span style={{ marginLeft: "auto", fontSize: 11.5, color: "#4B7B5D", fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", gap: 4 }}>
+            <Check size={11} /> Periodo 2025 guardado
           </span>
         )}
       </div>
 
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "28px 20px 60px" }}>
-        {/* Encabezado */}
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, background: "#C96442", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -766,7 +978,6 @@ export default function DeclaracionRentaWizard({ sesion, declarante, onVolver, o
           </h1>
         </div>
 
-        {/* Error de API persistente (datos / patrimonio) */}
         {errorApi && (
           <div style={{ background: "#FBEAE8", border: "1px solid #F0C7C2", color: "#8C231C", fontSize: 13, borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontFamily: "'Inter', sans-serif", display: "flex", gap: 8 }}>
             <AlertCircle size={15} style={{ marginTop: 1, flexShrink: 0 }} /> {errorApi}
@@ -796,10 +1007,10 @@ export default function DeclaracionRentaWizard({ sesion, declarante, onVolver, o
             {idPaso === "perfil"      && <PasoPerfil perfil={perfil} setPerfil={setPerfil} />}
             {idPaso === "datos"       && <PasoDatos datos={datos} setDatos={setDatos} errores={errores} modoEdicion={!!declarante?.id} />}
             {idPaso === "patrimonio"  && <PasoPatrimonio patrimonio={patrimonio} setPatrimonio={setPatrimonio} errores={errores} patrimonioLiquido={patrimonioLiquido} patrimonioLiquidoAnterior={patrimonioLiquidoAnterior} />}
-            {idPaso === "ingresos"    && <PasoIngresos perfil={perfil} ingresos={ingresos} setIngresos={setIngresos} errores={errores} totalIngresosBrutos={totalIngresosBrutos} totalRetenciones={totalRetenciones} />}
+            {idPaso === "ingresos"    && <PasoIngresos perfil={perfil} ingresos={ingresos} setIngresos={setIngresos} errores={errores} totalIngresosBrutos={totalIngresosBrutos} totalRetenciones={totalRetenciones} totalDeducciones={totalDeducciones} />}
             {idPaso === "presuntiva"  && <PasoPresuntiva patrimonioLiquidoAnterior={patrimonioLiquidoAnterior} rentaPresuntivaPesos={rentaPresuntivaPesos} rentaLiquidaCedular={rentaLiquidaCedular} />}
-            {idPaso === "liquidacion" && <PasoLiquidacion resultadoApi={resultadoLiquidacion} cargandoApi={cargandoLiquidacion} errorApi={errorLiquidacion} uvt={resultadoLiquidacion?.uvt_utilizada} />}
-            {idPaso === "resumen"     && <PasoResumen datos={datos} patrimonioLiquido={patrimonioLiquido} totalIngresosBrutos={totalIngresosBrutos} resultadoApi={resultadoLiquidacion} periodoId={periodoId} guardandoFinal={guardandoFinal} errorFinal={errorFinal} />}
+            {idPaso === "liquidacion" && <PasoLiquidacion resultadoApi={resultadoLiquidacion} cargandoApi={cargandoLiquidacion} errorApi={errorLiquidacion} uvt={resultadoLiquidacion?.uvt_utilizada} persistida={liquidacionPersistida} parametros={parametros} />}
+            {idPaso === "resumen"     && <PasoResumen datos={datos} patrimonioLiquido={patrimonioLiquido} totalIngresosBrutos={totalIngresosBrutos} totalDeducciones={totalDeducciones} resultadoApi={resultadoLiquidacion} periodoId={periodoId} guardandoFinal={guardandoFinal} errorFinal={errorFinal} />}
 
             {errores.general && (
               <div style={{ display: "flex", gap: 8, alignItems: "flex-start", background: "#FBEAE8", border: "1px solid #F0C7C2", color: "#8C231C", fontSize: 13, borderRadius: 8, padding: "10px 12px", marginTop: 8 }}>
@@ -813,9 +1024,7 @@ export default function DeclaracionRentaWizard({ sesion, declarante, onVolver, o
                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: "1px solid #DAD3C0", background: "#FFF", color: pasoActivo === 0 ? "#C9C2AE" : "#3A342A", fontSize: 13.5, fontWeight: 600, cursor: pasoActivo === 0 ? "default" : "pointer" }}>
                 <ChevronLeft size={15} /> Anterior
               </button>
-
               {guardando && <Spinner />}
-
               {!esUltimoPaso ? (
                 <button onClick={irSiguiente} disabled={guardando}
                   style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 8, border: "none", background: guardando ? "#D9A890" : "#C96442", color: "#FFF", fontSize: 13.5, fontWeight: 600, cursor: guardando ? "default" : "pointer" }}>

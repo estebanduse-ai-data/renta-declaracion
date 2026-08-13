@@ -1,11 +1,12 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.permisos import requiere_rol
 from app.db.session import get_db
-from app.models.declarante import Declarante, PeriodoGravable
+from app.models.declarante import PeriodoGravable
 from app.models.usuario import RolUsuario, Usuario
 from app.schemas.declarante import (
     ActualizarDeclarante,
@@ -15,7 +16,7 @@ from app.schemas.declarante import (
     RespuestaDeclarante,
     RespuestaPeriodoGravable,
 )
-from app.services.auditoria_service import registrar_auditoria
+from app.services import declarante_service as svc
 
 router = APIRouter(
     prefix="/declarantes",
@@ -24,9 +25,30 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=list[RespuestaDeclarante])
-def listar_declarantes(db: Session = Depends(get_db)) -> list[Declarante]:
-    return db.query(Declarante).order_by(Declarante.primer_apellido).all()
+class RespuestaListaDeclarantes(BaseModel):
+    """
+    Respuesta paginada del listado de declarantes.
+
+    `total` permite al frontend saber cuántos hay en total sin cargar todos.
+    `skip` y `limit` reflejan los parámetros usados para facilitar la
+    construcción de controles de paginación en el cliente.
+    """
+    total: int
+    skip: int
+    limit: int
+    items: list[RespuestaDeclarante]
+
+
+@router.get("", response_model=RespuestaListaDeclarantes)
+def listar_declarantes(
+    db: Session = Depends(get_db),
+    skip: int = Query(default=0, ge=0, description="Número de registros a omitir"),
+    limit: int = Query(default=200, ge=1, le=500, description="Máximo de registros a devolver"),
+    busqueda: str = Query(default="", description="Filtro por apellido o NIT (opcional)"),
+) -> RespuestaListaDeclarantes:
+    """Lista declarantes con paginación y filtro opcional. Act. 1.3."""
+    total, items = svc.listar_declarantes(db, skip=skip, limit=limit, busqueda=busqueda)
+    return RespuestaListaDeclarantes(total=total, skip=skip, limit=limit, items=items)
 
 
 @router.post("", response_model=RespuestaDeclarante, status_code=status.HTTP_201_CREATED)
@@ -34,35 +56,33 @@ def crear_declarante(
     solicitud: CrearDeclarante,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(requiere_rol(RolUsuario.ADMIN, RolUsuario.CONTADOR, RolUsuario.AUXILIAR)),
-) -> Declarante:
-    existente = db.query(Declarante).filter(Declarante.nit == solicitud.nit).first()
-    if existente is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Ya existe un declarante con ese NIT."
+) -> RespuestaDeclarante:
+    try:
+        declarante = svc.crear_declarante(
+            db,
+            nit=solicitud.nit,
+            digito_verificacion=solicitud.digito_verificacion,
+            primer_nombre=solicitud.primer_nombre,
+            primer_apellido=solicitud.primer_apellido,
+            actividad_economica=solicitud.actividad_economica,
+            usuario_id=usuario.id,
         )
-
-    declarante = Declarante(**solicitud.model_dump())
-    db.add(declarante)
-    db.flush()
-    registrar_auditoria(
-        db,
-        usuario_id=usuario.id,
-        entidad="declarante",
-        entidad_id=str(declarante.id),
-        accion="crear",
-        valores_nuevos=solicitud.model_dump(),
-    )
-    db.commit()
-    db.refresh(declarante)
-    return declarante
+        db.commit()
+        db.refresh(declarante)
+        return declarante
+    except svc.NITDuplicadoError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
 
 @router.get("/{declarante_id}", response_model=RespuestaDeclarante)
-def obtener_declarante(declarante_id: uuid.UUID, db: Session = Depends(get_db)) -> Declarante:
-    declarante = db.query(Declarante).filter(Declarante.id == declarante_id).first()
-    if declarante is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Declarante no encontrado.")
-    return declarante
+def obtener_declarante(
+    declarante_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> RespuestaDeclarante:
+    try:
+        return svc._get_declarante_o_error(db, declarante_id)
+    except svc.DeclaranteNoEncontradoError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.patch("/{declarante_id}", response_model=RespuestaDeclarante)
@@ -71,37 +91,22 @@ def actualizar_declarante(
     solicitud: ActualizarDeclarante,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(requiere_rol(RolUsuario.ADMIN, RolUsuario.CONTADOR, RolUsuario.AUXILIAR)),
-) -> Declarante:
-    declarante = db.query(Declarante).filter(Declarante.id == declarante_id).first()
-    if declarante is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Declarante no encontrado.")
-
-    valores_anteriores = {
-        "primer_nombre": declarante.primer_nombre,
-        "primer_apellido": declarante.primer_apellido,
-        "actividad_economica": declarante.actividad_economica,
-    }
-    datos = solicitud.model_dump(exclude_unset=True)
-    for campo, valor in datos.items():
-        setattr(declarante, campo, valor)
-
-    db.add(declarante)
-    registrar_auditoria(
-        db,
-        usuario_id=usuario.id,
-        entidad="declarante",
-        entidad_id=str(declarante.id),
-        accion="actualizar",
-        valores_anteriores=valores_anteriores,
-        valores_nuevos=datos,
-    )
-    db.commit()
-    db.refresh(declarante)
-    return declarante
+) -> RespuestaDeclarante:
+    try:
+        declarante = svc.actualizar_declarante(
+            db,
+            declarante_id=declarante_id,
+            datos=solicitud.model_dump(exclude_unset=True),
+            usuario_id=usuario.id,
+        )
+        db.commit()
+        db.refresh(declarante)
+        return declarante
+    except svc.DeclaranteNoEncontradoError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
-# --- Periodos gravables ------------------------------------------------
-
+# ── Periodos gravables ─────────────────────────────────────────────────────────
 
 @router.post(
     "/{declarante_id}/periodos",
@@ -109,40 +114,33 @@ def actualizar_declarante(
     status_code=status.HTTP_201_CREATED,
 )
 def crear_periodo(
-    declarante_id: uuid.UUID, solicitud: CrearPeriodoGravable, db: Session = Depends(get_db)
-) -> PeriodoGravable:
-    declarante = db.query(Declarante).filter(Declarante.id == declarante_id).first()
-    if declarante is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Declarante no encontrado.")
-
-    existente = (
-        db.query(PeriodoGravable)
-        .filter(
-            PeriodoGravable.declarante_id == declarante_id, PeriodoGravable.anio == solicitud.anio
+    declarante_id: uuid.UUID,
+    solicitud: CrearPeriodoGravable,
+    db: Session = Depends(get_db),
+) -> RespuestaPeriodoGravable:
+    try:
+        periodo = svc.crear_periodo(
+            db,
+            declarante_id=declarante_id,
+            anio=solicitud.anio,
+            patrimonio_bruto=float(solicitud.patrimonio_bruto) if solicitud.patrimonio_bruto else 0,
+            pasivos=float(solicitud.pasivos) if solicitud.pasivos else 0,
         )
-        .first()
-    )
-    if existente is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Este declarante ya tiene un periodo gravable {solicitud.anio}.",
-        )
-
-    periodo = PeriodoGravable(declarante_id=declarante_id, **solicitud.model_dump())
-    db.add(periodo)
-    db.commit()
-    db.refresh(periodo)
-    return periodo
+        db.commit()
+        db.refresh(periodo)
+        return periodo
+    except svc.DeclaranteNoEncontradoError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except svc.PeriodoDuplicadoError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
 
 @router.get("/{declarante_id}/periodos", response_model=list[RespuestaPeriodoGravable])
-def listar_periodos(declarante_id: uuid.UUID, db: Session = Depends(get_db)) -> list[PeriodoGravable]:
-    return (
-        db.query(PeriodoGravable)
-        .filter(PeriodoGravable.declarante_id == declarante_id)
-        .order_by(PeriodoGravable.anio.desc())
-        .all()
-    )
+def listar_periodos(
+    declarante_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> list[PeriodoGravable]:
+    return svc.listar_periodos(db, declarante_id)
 
 
 @router.patch("/{declarante_id}/periodos/{periodo_id}", response_model=RespuestaPeriodoGravable)
@@ -152,43 +150,19 @@ def actualizar_periodo(
     solicitud: ActualizarPeriodoGravable,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(requiere_rol(RolUsuario.ADMIN, RolUsuario.CONTADOR, RolUsuario.AUXILIAR)),
-) -> PeriodoGravable:
-    periodo = (
-        db.query(PeriodoGravable)
-        .filter(PeriodoGravable.id == periodo_id, PeriodoGravable.declarante_id == declarante_id)
-        .first()
-    )
-    if periodo is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Periodo no encontrado.")
-
-    if periodo.estado == "presentado" and solicitud.model_dump(exclude_unset=True):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "Este periodo ya está presentado y no se puede editar. "
-                "Si necesitas corregirlo, créalo como una declaración de corrección."
-            ),
+) -> RespuestaPeriodoGravable:
+    try:
+        periodo = svc.actualizar_periodo(
+            db,
+            declarante_id=declarante_id,
+            periodo_id=periodo_id,
+            datos=solicitud.model_dump(exclude_unset=True),
+            usuario_id=usuario.id,
         )
-
-    valores_anteriores = {
-        "estado": periodo.estado,
-        "patrimonio_bruto": float(periodo.patrimonio_bruto),
-        "pasivos": float(periodo.pasivos),
-    }
-    datos = solicitud.model_dump(exclude_unset=True)
-    for campo, valor in datos.items():
-        setattr(periodo, campo, valor)
-
-    db.add(periodo)
-    registrar_auditoria(
-        db,
-        usuario_id=usuario.id,
-        entidad="periodo_gravable",
-        entidad_id=str(periodo.id),
-        accion="actualizar",
-        valores_anteriores=valores_anteriores,
-        valores_nuevos=datos,
-    )
-    db.commit()
-    db.refresh(periodo)
-    return periodo
+        db.commit()
+        db.refresh(periodo)
+        return periodo
+    except svc.PeriodoNoEncontradoError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except svc.PeriodoPresentadoError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))

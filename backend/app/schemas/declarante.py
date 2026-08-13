@@ -1,4 +1,6 @@
+from decimal import Decimal
 import uuid
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -31,14 +33,16 @@ class RespuestaDeclarante(BaseModel):
 
 class CrearPeriodoGravable(BaseModel):
     anio: int = Field(ge=2000, le=2100)
-    patrimonio_bruto: float = Field(ge=0, default=0)
-    pasivos: float = Field(ge=0, default=0)
+    # Decimal para valores monetarios en pesos — evita errores de punto
+    # flotante IEEE 754 en cálculos presentados a la DIAN (Act. 0.5).
+    patrimonio_bruto: Decimal = Field(ge=0, default=Decimal("0"), decimal_places=2)
+    pasivos: Decimal = Field(ge=0, default=Decimal("0"), decimal_places=2)
 
 
 class ActualizarPeriodoGravable(BaseModel):
     estado: str | None = Field(default=None, pattern=r"^(borrador|en_revision|presentado)$")
-    patrimonio_bruto: float | None = Field(default=None, ge=0)
-    pasivos: float | None = Field(default=None, ge=0)
+    patrimonio_bruto: Decimal | None = Field(default=None, ge=0, decimal_places=2)
+    pasivos: Decimal | None = Field(default=None, ge=0, decimal_places=2)
 
 
 class RespuestaPeriodoGravable(BaseModel):
@@ -46,8 +50,11 @@ class RespuestaPeriodoGravable(BaseModel):
     declarante_id: uuid.UUID
     anio: int
     estado: str
-    patrimonio_bruto: float
-    pasivos: float
+    patrimonio_bruto: Decimal
+    pasivos: Decimal
+    # Incluido en la respuesta para que el frontend pueda mostrar
+    # el resultado de la última liquidación sin recalcular.
+    resultado_liquidacion: dict[str, Any] | None = None
 
     class Config:
         from_attributes = True

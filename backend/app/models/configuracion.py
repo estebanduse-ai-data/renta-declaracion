@@ -17,7 +17,7 @@ ahí el módulo de configuración es la fuente de verdad en producción.
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Numeric, String, text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -68,7 +68,7 @@ class ParametroTributario(Base):
     activo: Mapped[bool] = mapped_column(Boolean, default=False)
 
     creado_por_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("usuario.id"), nullable=True)
-    creado_en: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     nota: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
 
@@ -83,7 +83,7 @@ class TRMDiaria(Base):
     # se integra la API del Banco de la República — ver docs/FALTANTES.md).
 
     creado_por_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("usuario.id"), nullable=True)
-    creado_en: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class TasaInteresMora(Base):
@@ -97,4 +97,4 @@ class TasaInteresMora(Base):
     fuente: Mapped[str] = mapped_column(String(200), default="Superintendencia Financiera de Colombia")
 
     creado_por_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("usuario.id"), nullable=True)
-    creado_en: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
