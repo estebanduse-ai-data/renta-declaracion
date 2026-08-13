@@ -114,3 +114,49 @@ nazca ya reflejando la realidad.
   casos de prueba (ver `CONTRIBUTING.md`).
 - **Avance del milestone** (`gh issue list --milestone "Fase 1 — MVP interno" --state all`)
   como proxy simple de porcentaje de avance de la fase.
+
+---
+
+## 6. Plan de actividades y sincronización con GitHub Issues
+
+### 6.1 Relación entre documentos y GitHub
+
+El flujo de planeación tiene tres capas:
+
+```
+docs/PLAN_DE_ACTIVIDADES.md   ← fuente de verdad operativa (semana a semana)
+         │
+         ▼
+data/backlog.csv               ← representación CSV del backlog (para los scripts)
+         │
+         ▼
+GitHub Issues + Projects       ← tablero de trabajo diario del equipo
+```
+
+Al completar una actividad de `PLAN_DE_ACTIVIDADES.md`:
+1. Actualizar `estado` en `data/backlog.csv` → `hecho` (si tiene fila correspondiente).
+2. Cerrar la issue en GitHub (o crearla y cerrarla si no existía).
+3. Actualizar `ESTADO_ACTUAL.md` sección "Qué existe y en qué estado".
+
+### 6.2 Actividades nuevas sin fila en backlog.csv
+
+Los hallazgos técnicos de la sesión 4 (Act. 0.1, 0.4, 0.5, 1.3, 1.4, 3.3, 3.4, 3.5)
+no tienen fila en `data/backlog.csv` porque surgieron del análisis del código, no de
+la planeación inicial. Para cargarlos a GitHub, crear las issues manualmente:
+
+```bash
+# Ejemplo: crear issue para Act. 0.1
+gh issue create \
+  --title "Act. 0.1 — Rotar JWT_SECRET_KEY y excluir .env de git" \
+  --label "prioridad:critica,area:seguridad,fase:1" \
+  --milestone "Fase 1 — MVP interno" \
+  --body "El secreto JWT está commitado en backend/.env. Ver docs/PLAN_DE_ACTIVIDADES.md Act. 0.1"
+```
+
+### 6.3 Vista recomendada en GitHub Projects
+
+Agregar una cuarta vista al tablero (además de las tres de la sección 1.4):
+
+- **Vista "Plan de actividades"**: tipo tabla, ordenada por campo `prioridad:*` y
+  filtrada por milestone activo. Permite ver de un vistazo qué actividades del plan
+  están abiertas, en progreso y cerradas, en el mismo orden que `PLAN_DE_ACTIVIDADES.md`.

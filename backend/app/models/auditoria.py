@@ -9,7 +9,7 @@ actualizado ahí afecta el cálculo de TODOS los declarantes, no solo uno.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSONB
@@ -28,4 +28,4 @@ class AuditoriaCambio(Base):
     accion: Mapped[str] = mapped_column(String(20))  # crear | actualizar | eliminar | activar
     valores_anteriores: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     valores_nuevos: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    creado_en: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))

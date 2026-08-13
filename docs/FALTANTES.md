@@ -1,126 +1,126 @@
-# Faltantes — Brecha entre el prototipo actual y un producto de producción
+# Faltantes — Brecha entre el estado actual y un producto de producción
 
-Este documento lista, honestamente, lo que el prototipo de wizard (`frontend/src/wizard`)
-y este esqueleto de repositorio **no cubren todavía**, para que quede explícito qué falta
-antes de decomisionar el Excel actual.
+**Última actualización:** sesión jul-2026. Refleja el estado tras conectar el wizard
+a la API, implementar el panel de administración y la carga masiva desde Excel.
+
+---
 
 ## 1. Cobertura funcional tributaria
 
-- [x] **Ganancias ocasionales** — venta de inmuebles con ajuste art. 73, venta de acciones
-  (bolsa/fuera de bolsa), herencias/legados/donaciones, loterías/rifas. Implementado en
-  `backend/app/rules_engine/ganancias_ocasionales.py`, expuesto en
-  `/ganancias-ocasionales/*`, con 9 pruebas unitarias. **Pendiente:** indemnizaciones de
-  seguros de vida y el caso especial de vivienda adquirida antes de 1987.
-- [x] **Ajustes fiscales por año de adquisición (art. 73 E.T.)** — implementado como tabla
-  de factores en `parametros_2025.py` (`FACTORES_AJUSTE_ART73_POR_ANIO`), consumida por
-  `costo_fiscal_ajustado()`. **Pendiente:** los factores incluidos son una muestra de años
-  recientes; ampliar y confirmar contra el decreto de ajuste de costos vigente antes de
-  producción.
-- [x] **Cédula de dividendos y participaciones** — implementada en
-  `backend/app/rules_engine/dividendos.py`, con el componente de dividendos gravados
-  (tabla marginal) y no gravados en cabeza de la sociedad (tarifa corporativa equivalente).
-- [x] **Deducciones específicas con tope real** — intereses de vivienda, salud/medicina
-  prepagada y dependientes económicos, implementadas en
-  `backend/app/rules_engine/deducciones.py`. Ampliado con **ICETEX** (comparte tope con
-  vivienda, art. 119 E.T.), **cesantías e intereses de cesantías** (tabla de exención según
-  ingreso promedio) y **becas de estudio** (exención total si no es contraprestación por
-  servicios). **Pendiente:** donaciones como deducción específica de renta de trabajo (nota:
-  el descuento tributario del 25% ya cubre el caso general de donaciones, ver abajo), y la
-  deducción por inversión en cine/obras audiovisuales/librerías.
-- [x] **Descuentos tributarios** — donaciones (art. 257 E.T.) y el límite conjunto del 30%
-  del impuesto básico (art. 259 E.T.) implementados en
-  `backend/app/rules_engine/descuentos_tributarios.py`. **Pendiente:** descuentos
-  específicos de los artículos 255 y 256 E.T. (inversión en investigación/tecnología,
-  proyectos de energía) — hoy solo se modela el mecanismo genérico del límite, no cada
-  descuento particular.
-- [x] **Compensaciones** (rentas líquidas negativas de años anteriores). Implementado en
-  `backend/app/rules_engine/compensaciones.py`. **Pendiente:** el control de vigencia del
-  plazo de 12 años y la separación por cédula requieren el histórico completo por
-  declarante — no modelado todavía a nivel de base de datos.
-- [x] **Bienes y deudas en moneda extranjera** con conversión por TRM. Implementado en
-  `backend/app/rules_engine/moneda_extranjera.py` (TRM de cierre para patrimonio, TRM del
-  día para ingresos). **Pendiente:** integrar una fuente real de TRM diaria (equivalente a
-  la hoja `TRM_diaria` del Excel actual) — hoy la función recibe la TRM como parámetro, no
-  la consulta.
-- [x] **Sanciones e intereses de mora** — sanción por extemporaneidad (con y sin impuesto a
-  cargo), sanción por corrección, e interés de mora simple diario, implementados en
-  `backend/app/rules_engine/sanciones.py`. **Pendiente:** régimen de sanción reducida por
-  gradualidad (art. 640 E.T., parágrafos de buen comportamiento del contribuyente) y la
-  tasa de interés de mora es referencial — debe sustituirse por la tasa vigente certificada
-  por la Superintendencia Financiera antes de un caso real.
-- [x] **Anticipo de renta año siguiente** — ambas metodologías (individual y promedio) con
-  lógica de primera/segunda/tercera vez, implementado en
-  `backend/app/rules_engine/anticipo.py`.
+- [x] Ganancias ocasionales (venta inmuebles art. 73, acciones, herencias, loterías).
+  **Pendiente:** indemnizaciones de seguros de vida y vivienda adquirida antes de 1987.
+- [x] Ajustes fiscales por año de adquisición (art. 73 E.T.) — tabla de factores en
+  `parametros_2025.py`. **Pendiente:** ampliar y confirmar contra el decreto vigente.
+- [x] Cédula de dividendos y participaciones.
+- [x] Deducciones específicas con tope real — vivienda, salud, dependientes, ICETEX,
+  cesantías, becas. **Pendiente:** donaciones como deducción directa de renta de trabajo
+  y deducción por inversión en cine/audiovisual/librerías.
+- [x] Descuentos tributarios — donaciones art. 257 E.T. y límite art. 259 E.T.
+  **Pendiente:** descuentos arts. 255 y 256 E.T. (investigación, energía).
+- [x] Compensaciones (rentas líquidas negativas años anteriores).
+  **Pendiente:** control de vigencia 12 años y separación por cédula requieren
+  histórico completo por declarante — no modelado en BD todavía.
+- [x] Bienes y deudas en moneda extranjera con conversión por TRM.
+  **Pendiente:** integrar fuente automática de TRM (API Banco de la República).
+- [x] Sanciones e intereses de mora. **Pendiente:** régimen de sanción reducida por
+  gradualidad (art. 640 E.T.) y tasa de mora referencial — debe sustituirse por la
+  tasa certificada por la Superintendencia Financiera antes de uso en producción.
+- [x] Anticipo de renta año siguiente (ambas metodologías).
+- [x] Wizard con patrimonio desglosado (efectivo, inversiones, cuentas por cobrar,
+  inventarios, propiedades, vehículos, otros activos; deudas bancarias, deudas con
+  personas, otros pasivos).
+- [x] Rentas cedulares con fondo de pensiones y AFC separados; medicina prepagada y
+  seguros complementarios separados; totales visibles por bloque.
+
+---
 
 ## 2. Producto y experiencia
 
-- [ ] Carga masiva desde el Excel actual (importador con mapeo de columnas y validación de
-  consistencia).
-- [ ] Panel de gestión de cartera para el contador (listado de 200 declarantes, estados,
-  filtros, calendario de vencimientos por NIT).
-- [ ] Generación del reporte final en el formato exacto de casillas del Formulario 210,
-  listo para transcribir en los Servicios Informáticos Electrónicos.
-- [ ] Historial de versiones por declaración (borrador vs. versión presentada vs.
+- [x] Wizard conectado a la API real (los tres gaps corregidos).
+- [x] Persistencia del resultado de liquidación en `periodo_gravable.resultado_liquidacion`.
+- [x] Panel de administración con dashboard de alertas, cartera, checklist de
+  documentos e importación masiva desde Excel.
+- [x] Carga masiva desde Excel (endpoint `POST /admin/importar-declarantes` + script CLI).
+- [ ] **Checklist de documentos persistido en BD** — hoy se guarda en `localStorage`
+  del navegador; si el contador cambia de equipo o limpia el navegador, se pierde.
+  Requiere tabla nueva `documento_checklist` y migración `0003`.
+- [ ] Generación del reporte final en el formato de casillas del Formulario 210, listo
+  para transcribir en los Servicios Informáticos Electrónicos (SIE) de la DIAN.
+- [ ] Historial de versiones por declaración (borrador / versión presentada /
   correcciones posteriores).
-- [ ] Modo "revisión" donde el contador aprueba o devuelve observaciones (relevante desde ya
-  para preparar la Fase 3 de autoservicio).
+- [ ] Modo de revisión donde el contador aprueba o devuelve observaciones — prepara la
+  Fase 3 de autoservicio sin cambios estructurales de modelo.
+- [ ] Importador con mapeo de columnas personalizadas — hoy exige la plantilla estándar;
+  una vez el contador entregue su Excel actual, evaluar si conviene mapeo flexible.
+- [ ] Pruebas de paridad declarante por declarante vs. el Excel actual —
+  **bloquea presentar cualquier declaración real con el sistema nuevo**
+  (ver `docs/RIESGOS.md`, riesgo #9).
+
+---
 
 ## 3. Plataforma y no-funcionales
 
-- [x] **Autenticación y control de acceso por rol** — JWT + roles Admin/Contador/Auxiliar,
-  implementado en `backend/app/core/security.py` y `backend/app/core/permisos.py`.
-- [x] **Auditoría de cambios** (quién modificó qué dato y cuándo) — `AuditoriaCambio`,
-  registrada automáticamente en cambios a declarantes, periodos y configuración.
-- [x] **Migraciones de base de datos** — Alembic configurado, con la migración inicial
-  escrita a mano en `backend/migrations/versions/0001_inicial.py` (no se pudo
-  autogenerar por falta de conexión a una base de datos real en el entorno de
-  desarrollo; ver la nota dentro del archivo sobre correr `alembic check` antes de
-  confiar en ella ciegamente en producción).
-- [x] **Módulo de configuración administrable** — parámetros tributarios anuales, TRM
-  diaria y tasa de interés de mora, cada uno accesible solo por el rol Admin desde
-  `/configuracion/*`, con validación estricta (`ParametrosTributariosPayload`) antes de
-  guardar. Ver ADR 0002. **Pendiente:** integrar una fuente automática de TRM (API del
-  Banco de la República) en vez de carga manual — sigue siendo carga manual por ahora.
+- [x] Autenticación y control de acceso por rol (JWT, Admin/Contador/Auxiliar).
+- [x] Auditoría de cambios (`AuditoriaCambio`), incluyendo importaciones masivas.
+- [x] Migraciones Alembic aplicadas y verificadas con `alembic check`.
+- [x] Módulo de configuración administrable (parámetros tributarios, TRM, tasa mora).
+- [x] Panel de administración exclusivo para rol Admin.
+- [ ] **Checklist de documentos en BD** (migración `0003` pendiente).
 - [ ] Backups automatizados y prueba de restauración.
-- [ ] Suite de pruebas de paridad: comparar, declarante por declarante, el resultado del
-  sistema nuevo contra el Excel actual, antes de decomisionarlo.
-- [ ] Manejo de errores y observabilidad (logs estructurados, alertas ante fallas de cálculo).
+- [ ] Suite de pruebas de paridad (ver sección 2).
+- [ ] Manejo de errores y observabilidad (logs estructurados, alertas ante fallas).
 - [ ] Documentación de usuario final para el contador y sus auxiliares.
-- [ ] Política de tratamiento de datos personales (Habeas Data) formalizada — obligatoria
-  incluso en Fase 1 por el volumen de datos sensibles de 200 declarantes.
-- [ ] Cifrado en reposo de la base de datos y HTTPS interno — pendientes de configurar en
-  el servidor local definitivo, no aplican en el entorno de desarrollo con Docker Compose.
+- [ ] Política de tratamiento de datos personales (Habeas Data) formalizada —
+  obligatoria incluso en Fase 1 por el volumen de datos sensibles de ~200 declarantes.
+- [ ] Cifrado en reposo y HTTPS — pendientes para el servidor local definitivo.
 
-## 3.1 Backend — persistencia y CRUD
+---
 
-- [x] **CRUD de declarantes y periodos gravables** — `backend/app/api/routes_declarantes.py`,
-  con auditoría en creación y actualización.
-- [ ] Modelos y endpoints de `ingreso_cedular` y `deduccion` por periodo — hoy el wizard
-  tendría que enviar los totales ya depurados en cada llamada a `/liquidacion/calcular`;
-  falta poder guardarlos línea por línea y recalcular.
-- [ ] Persistencia del resultado de liquidación en el `periodo_gravable` correspondiente —
-  hoy el endpoint calcula pero no guarda.
-- [ ] Generación del reporte final en el formato exacto de casillas del Formulario 210,
-  listo para transcribir en los Servicios Informáticos Electrónicos.
+## 4. Backend — persistencia y CRUD pendiente
 
-## 4. Priorización sugerida
+- [x] CRUD declarantes y periodos con auditoría.
+- [x] Persistencia del resultado de liquidación (JSONB en `periodo_gravable`).
+- [x] Importación masiva con auditoría por registro.
+- [ ] Modelos y endpoints de `ingreso_cedular` y `deduccion` por periodo — hoy el
+  wizard envía los totales ya consolidados; falta guardarlos línea por línea para
+  poder recalcular sin volver a capturar.
+- [ ] Tabla `documento_checklist` — migración `0003`.
+- [ ] Endpoint de exportación de casillas del Formulario 210 (JSON → PDF o CSV).
 
-1. **Bloqueante para MVP, ya cerrado en el motor de reglas (✔ este repositorio):**
-   ganancias ocasionales, cédula de dividendos, deducciones específicas con topes reales
-   (incluyendo ICETEX, cesantías y becas), descuentos tributarios, sanciones/intereses,
-   anticipo, compensaciones y moneda extranjera. Todo con pruebas unitarias — ver
-   `backend/tests/` y el changelog en el historial de Git.
-2. **Bloqueante para MVP, todavía pendiente:** carga masiva, panel de cartera, pruebas de
-   paridad contra el Excel actual, autenticación, persistencia de todo lo anterior en la
-   API (hoy el motor de reglas calcula pero solo el endpoint de liquidación y ganancias
-   ocasionales están expuestos vía API).
-3. **Importante pero no bloqueante:** historial de versiones por declaración, descuentos
-   específicos de los artículos 255/256 E.T. — pueden entrar en una iteración temprana de
-   Fase 2 si no son casos frecuentes en la cartera actual de 200 declarantes.
-4. **Antes de Fase 3 (portal de clientes):** autenticación robusta, auditoría completa,
-   política de datos personales formalizada — son bloqueantes para exponer el sistema a los
-   clientes finales, no para el uso interno del contador.
+---
 
-> Recomendación: antes de estimar el cronograma final de Fase 1, revisar con el contador
-> qué porcentaje real de sus 200 declarantes usa cada uno de los conceptos listados arriba,
-> para no invertir esfuerzo en casos que no aplican a la cartera actual.
+## 5. Priorización actualizada
+
+| Prioridad | Tarea | Bloquea |
+|---|---|---|
+| 🔴 Crítica | Pruebas de paridad vs. Excel actual | Presentar cualquier declaración real |
+| 🔴 Crítica | Obtener Excel del contador + probar importador | Migrar los 200 declarantes |
+| 🟠 Alta | Checklist de documentos en BD (migración 0003) | Confiabilidad del checklist |
+| 🟠 Alta | Modelos `ingreso_cedular` / `deduccion` por periodo | Recálculo sin re-captura |
+| 🟡 Media | Reporte casillas Formulario 210 | Transcripción a SIE DIAN |
+| 🟡 Media | Historial de versiones por declaración | Correcciones y auditoría |
+| 🟡 Media | Fuente automática TRM (API Banco República) | Precisión en activos en divisas |
+| 🟢 Baja | Descuentos arts. 255/256 E.T. | Solo si hay casos en la cartera |
+| 🟢 Baja | Mapeo flexible de columnas en el importador | Comodidad del contador |
+---
+
+## 6. Hallazgos técnicos adicionales (análisis senior jul-2026)
+
+Estos ítems no estaban en el backlog original pero fueron identificados al analizar
+el código fuente. Tienen actividad asignada en `docs/PLAN_DE_ACTIVIDADES.md`.
+
+| Hallazgo | Archivo | Actividad | Impacto |
+|---|---|---|---|
+| `JWT_SECRET_KEY` commitado en `.env` real | `backend/.env` | Act. 0.1 | 🔴 Seguridad activa |
+| ✅ `datetime.utcnow()` deprecated Python 3.12 | `models/usuario.py`, `models/declarante.py`, `models/auditoria.py`, `models/configuracion.py`, `api/routes_admin.py` | Act. 0.4 — **resuelto sesión 6** | 🟠 Error en Python 3.14 |
+| ✅ `float` en schemas monetarios (debería ser `Decimal`) | `schemas/declarante.py`, `routes_liquidacion.py`, `routes_ganancias_ocasionales.py`, `routes_declarantes.py` | Act. 0.5 — **resuelto sesión 6** | 🟠 Precisión numérica en cálculos DIAN |
+| ✅ Tabla de tarifa duplicada en wizard y en `parametros_2025.py` | `wizard/DeclaracionRentaWizard.jsx` | Act. 1.4 — **resuelto sesión 7** | 🟠 Desincronización al cambiar año |
+| `GET /declarantes` sin paginación (`db.query().all()`) | `api/routes_declarantes.py` | Act. 1.3 | 🟠 Escalabilidad |
+| Lógica de negocio mezclada en routers (sin service layer) | `api/routes_*.py` | Act. 3.3 | 🟡 Mantenibilidad |
+| Wizard de 1013 líneas sin separación por componente | `wizard/DeclaracionRentaWizard.jsx` | Act. 3.5 | 🟡 Mantenibilidad |
+| Sin refresh token — sesión de 60 min interrumpe wizard | `src/api.js` | Act. 3.4 | 🟡 UX en sesiones largas |
+| CI en Python 3.12 pero runtime local en 3.13 | `.github/workflows/ci.yml` | — | 🟢 Alinear versiones |
+| ✅ Usuario con rol único — `admin` bloqueado sin acceso a cartera ni wizard | `models/usuario.py` (campo `rol: Enum`), `main.jsx` (dispatch binario `rol === "admin"`) | Act. 4.6 — **parche resuelto sesión 6**; solución estructural Act. 2F.2 Fase 2 | 🟠 Bloquea al contador-admin en operación diaria |
+
+> **Cómo actualizar esta sección:** al resolver un hallazgo, marcar el ítem con ✅
+> y agregar la referencia al commit o PR que lo cierra.

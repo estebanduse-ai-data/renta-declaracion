@@ -31,6 +31,47 @@ router = APIRouter(
     prefix="/configuracion", tags=["configuracion"], dependencies=[Depends(requiere_rol(RolUsuario.ADMIN))]
 )
 
+# Router secundario sin restricción de rol — solo lectura de parámetros
+# que el wizard necesita para mostrar la tabla de tarifa y calcular topes.
+router_publico = APIRouter(
+    prefix="/configuracion", tags=["configuracion"],
+    dependencies=[Depends(requiere_rol(RolUsuario.ADMIN, RolUsuario.CONTADOR, RolUsuario.AUXILIAR))],
+)
+
+
+@router_publico.get("/parametros-publicos/{anio}")
+def obtener_parametros_publicos(anio: int, db: Session = Depends(get_db)):
+    """
+    Devuelve los parámetros tributarios del año indicado en formato reducido,
+    accesible por todos los roles (Admin, Contador, Auxiliar).
+
+    Solo expone los campos que el wizard necesita para display:
+    UVT, tabla de tarifa y topes de deducciones. No expone la configuración
+    interna completa (tasa de mora, TRM, etc.).
+
+    Act. 1.4 — reemplaza TABLA_TARIFA_DISPLAY y UVT_2025_FALLBACK del wizard.
+    """
+    registro = (
+        db.query(ParametroTributario)
+        .filter(ParametroTributario.anio == anio, ParametroTributario.activo.is_(True))
+        .first()
+    )
+    if registro is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No hay parámetros tributarios activos para el año {anio}.",
+        )
+    v = registro.valores
+    return {
+        "anio": registro.anio,
+        "uvt": v.get("UVT"),
+        "tabla_tarifa_uvt": v.get("TABLA_TARIFA_UVT"),
+        "porcentaje_renta_exenta_laboral": v.get("PORCENTAJE_RENTA_EXENTA_LABORAL"),
+        "tope_renta_exenta_laboral_uvt": v.get("TOPE_RENTA_EXENTA_LABORAL_UVT"),
+        "limite_renta_exenta_deducciones_porcentaje": v.get("LIMITE_RENTA_EXENTA_DEDUCCIONES_PORCENTAJE"),
+        "tope_renta_exenta_deducciones_uvt": v.get("TOPE_RENTA_EXENTA_DEDUCCIONES_UVT"),
+    }
+
 
 # --- Parámetros tributarios anuales ------------------------------------
 
