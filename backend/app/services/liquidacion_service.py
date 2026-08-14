@@ -1,36 +1,34 @@
 """
 LiquidacionService — Lógica de negocio de liquidación privada.
 
-Por qué existe este servicio
-─────────────────────────────
-`routes_liquidacion.py` mezclaba tres responsabilidades distintas en un solo
-handler de 50 líneas:
+Cambios en DT-5
+────────────────
+Ya no se convierten los inputs a `float` antes de llamar a `liquidar()`.
+El motor de reglas (`tarifa.py`) ahora opera en `Decimal` puro, y los
+inputs que llegan de la API ya son `Decimal` (los schemas Pydantic los
+validan como tal desde Act. 0.5).
 
-  1. Obtener los parámetros tributarios vigentes (delega a parametros_service).
-  2. Llamar al motor de reglas y convertir los resultados a Decimal.
-  3. Persistir el resultado en el periodo gravable si se proveyó periodo_id.
+La función `_redondear()` se mantiene: aunque el motor ya devuelve
+`Decimal`, los valores intermedios no están redondeados al peso (tienen
+más decimales de los que la DIAN espera). `_redondear()` aplica
+ROUND_HALF_UP al peso antes de serializar la respuesta.
 
-Al separarlo aquí, cada responsabilidad queda aislada y testeable sin FastAPI.
-El router pasa a ser un thin wrapper de 10 líneas.
+La conversión `Decimal(str(P.UVT))` ya no es necesaria porque
+`parametros_2025.py` define UVT directamente como `Decimal("49799")`.
 
-Convenciones
-─────────────
+Convenciones sin cambios
+──────────────────────────
 • Recibe y devuelve `Decimal` para todos los valores monetarios.
-  El motor de reglas (tarifa.py) sigue usando `float` internamente — la
-  conversión ocurre en `_redondear()`, mantenida aquí junto al servicio
-  que la usa (no en el router). Esto facilita la migración futura del
-  motor a Decimal completo (Act. pendiente post-Sprint 3).
-• La función `calcular_y_persistir` no hace commit — el router controla
-  la transacción. La única excepción es el caso donde `periodo_id` se
-  provee y el periodo existe: en ese caso sí hace commit parcial de la
-  persistencia del resultado.
+• No hace commit — el router controla la transacción.
+• Si `periodo_id` se provee y el periodo no está presentado, persiste
+  el resultado en `periodo.resultado_liquidacion` (JSONB).
 
 Referencias
 ───────────
-  Act. 3.3  — creación de este módulo
-  routes_liquidacion.py  — thin wrapper
-  tarifa.py  — motor de reglas puro (sin estado, sin ORM)
-  parametros_service.py  — fuente de parámetros tributarios vigentes
+  Act. 3.3  — creación de este módulo (service layer)
+  DT-5      — migración a Decimal en el motor de reglas
+  tarifa.py — motor de reglas puro (ahora Decimal completo)
+  parametros_service.py — fuente de parámetros tributarios vigentes
 """
 
 from __future__ import annotations
@@ -43,16 +41,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-# Cuantía mínima de redondeo para valores en pesos colombianos.
 _COP = Decimal("1")
 
 
-def _redondear(valor: float) -> Decimal:
-    """Convierte el float del motor de reglas a Decimal redondeado al peso."""
-    return Decimal(str(valor)).quantize(_COP, rounding=ROUND_HALF_UP)
+def _redondear(valor: Decimal) -> Decimal:
+    """Redondea al peso colombiano más cercano (ROUND_HALF_UP)."""
+    return valor.quantize(_COP, rounding=ROUND_HALF_UP)
 
-
-# ── DTO de resultado ───────────────────────────────────────────────────────────
 
 @dataclass
 class ResultadoLiquidacion:
@@ -60,24 +55,21 @@ class ResultadoLiquidacion:
     Resultado completo de una liquidación privada.
 
     Todos los valores monetarios son Decimal redondeados al peso.
-    `persistido` indica si el resultado fue guardado en la BD
-    (solo True cuando se proveyó periodo_id y el periodo no está presentado).
+    `persistido` indica si el resultado fue guardado en la BD.
     """
     renta_liquida_gravable_pesos: Decimal
-    impuesto_uvt: Decimal
-    impuesto_a_cargo_pesos: Decimal
-    total_retenciones_pesos: Decimal
-    saldo_pesos: Decimal
-    es_saldo_a_pagar: bool
-    anio_gravable: int
-    uvt_utilizada: Decimal
-    persistido: bool = False
+    impuesto_uvt:                 Decimal
+    impuesto_a_cargo_pesos:       Decimal
+    total_retenciones_pesos:      Decimal
+    saldo_pesos:                  Decimal
+    es_saldo_a_pagar:             bool
+    anio_gravable:                int
+    uvt_utilizada:                Decimal
+    persistido:                   bool = False
 
-
-# ── Función principal ──────────────────────────────────────────────────────────
 
 def calcular_y_persistir(
-    db: "Session",
+    db: Session,
     *,
     anio_gravable: int,
     total_ingresos_brutos_pesos: Decimal,
@@ -88,19 +80,14 @@ def calcular_y_persistir(
     periodo_id: uuid.UUID | None = None,
 ) -> ResultadoLiquidacion:
     """
-    Calcula la liquidación privada y, si se indica `periodo_id`, persiste
-    el resultado en el campo `resultado_liquidacion` del periodo.
+    Calcula la liquidación privada y opcionalmente la persiste en el periodo.
 
     Flujo:
       1. Obtiene parámetros tributarios vigentes del año (BD o fallback estático).
-      2. Llama a `tarifa.liquidar()` con los valores convertidos a float.
-      3. Convierte el resultado a Decimal con `_redondear()`.
-      4. Si `periodo_id` se proveyó y el periodo no está presentado, guarda
-         el resultado en `periodo.resultado_liquidacion` (JSONB) y hace commit.
-
-    Lanza:
-      - `ParametrosNoConfiguradosError` si no hay parámetros para el año.
-      - No lanza si `periodo_id` no se encuentra — simplemente no persiste.
+      2. Llama a `tarifa.liquidar()` pasando los valores directamente como Decimal.
+         (Antes de DT-5 se convertían a float aquí — ya no es necesario.)
+      3. Redondea el resultado al peso con `_redondear()`.
+      4. Si `periodo_id` se proveyó y el periodo no está presentado, persiste.
     """
     from app.models.declarante import PeriodoGravable
     from app.rules_engine.tarifa import liquidar
@@ -108,12 +95,13 @@ def calcular_y_persistir(
 
     P = obtener_parametros_vigentes(db, anio_gravable)
 
+    # DT-5: ya no hay float() — se pasan Decimal directamente al motor.
     resultado_motor = liquidar(
-        total_ingresos_brutos_pesos=float(total_ingresos_brutos_pesos),
-        deducciones_imputables_pesos=float(deducciones_imputables_pesos),
-        ingreso_salarios_pesos=float(ingreso_salarios_pesos),
-        total_retenciones_pesos=float(total_retenciones_pesos),
-        patrimonio_liquido_anterior_pesos=float(patrimonio_liquido_anterior_pesos),
+        total_ingresos_brutos_pesos=total_ingresos_brutos_pesos,
+        deducciones_imputables_pesos=deducciones_imputables_pesos,
+        ingreso_salarios_pesos=ingreso_salarios_pesos,
+        total_retenciones_pesos=total_retenciones_pesos,
+        patrimonio_liquido_anterior_pesos=patrimonio_liquido_anterior_pesos,
         uvt=P.UVT,
         tabla_tarifa_uvt=P.TABLA_TARIFA_UVT,
         porcentaje_renta_exenta_laboral=P.PORCENTAJE_RENTA_EXENTA_LABORAL,
@@ -123,12 +111,13 @@ def calcular_y_persistir(
         tarifa_renta_presuntiva=P.TARIFA_RENTA_PRESUNTIVA,
     )
 
+    # Redondear al peso — el motor devuelve Decimal con más decimales
     renta_liq      = _redondear(resultado_motor.renta_liquida_gravable_pesos)
     impuesto_uvt   = _redondear(resultado_motor.impuesto_uvt)
     impuesto_cargo = _redondear(resultado_motor.impuesto_a_cargo_pesos)
     retenciones    = _redondear(resultado_motor.total_retenciones_pesos)
     saldo          = _redondear(resultado_motor.saldo_pesos)
-    uvt_utilizada  = Decimal(str(P.UVT))
+    uvt_utilizada  = P.UVT   # ya es Decimal desde parametros_2025.py
 
     resultado = ResultadoLiquidacion(
         renta_liquida_gravable_pesos=renta_liq,
@@ -142,7 +131,6 @@ def calcular_y_persistir(
         persistido=False,
     )
 
-    # Persistencia opcional: guardar en el periodo si se indicó
     if periodo_id is not None:
         periodo = (
             db.query(PeriodoGravable)
@@ -152,13 +140,13 @@ def calcular_y_persistir(
         if periodo is not None and periodo.estado != "presentado":
             periodo.resultado_liquidacion = {
                 "renta_liquida_gravable_pesos": str(renta_liq),
-                "impuesto_uvt": str(impuesto_uvt),
-                "impuesto_a_cargo_pesos": str(impuesto_cargo),
-                "total_retenciones_pesos": str(retenciones),
-                "saldo_pesos": str(saldo),
-                "es_saldo_a_pagar": resultado_motor.es_saldo_a_pagar,
-                "uvt_utilizada": str(uvt_utilizada),
-                "anio_gravable": P.ANIO_GRAVABLE,
+                "impuesto_uvt":                 str(impuesto_uvt),
+                "impuesto_a_cargo_pesos":        str(impuesto_cargo),
+                "total_retenciones_pesos":       str(retenciones),
+                "saldo_pesos":                   str(saldo),
+                "es_saldo_a_pagar":              resultado_motor.es_saldo_a_pagar,
+                "uvt_utilizada":                 str(uvt_utilizada),
+                "anio_gravable":                 P.ANIO_GRAVABLE,
             }
             db.add(periodo)
             db.commit()
