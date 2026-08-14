@@ -1,14 +1,19 @@
-import uuid
-from decimal import Decimal
+"""
+routes_liquidacion.py — endpoint de liquidación privada.
+
+Cambio en DT-7
+───────────────
+`SolicitudLiquidacion` y `RespuestaLiquidacion` se movieron a
+`app/schemas/liquidacion.py`. El contrato HTTP no cambia.
+"""
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.permisos import requiere_rol
 from app.db.session import get_db
 from app.models.usuario import RolUsuario
-from app.rules_engine import parametros_2025 as _DEFAULTS
+from app.schemas.liquidacion import RespuestaLiquidacion, SolicitudLiquidacion
 from app.services import liquidacion_service as svc
 
 router = APIRouter(
@@ -16,31 +21,6 @@ router = APIRouter(
     tags=["liquidacion"],
     dependencies=[Depends(requiere_rol(RolUsuario.ADMIN, RolUsuario.CONTADOR, RolUsuario.AUXILIAR))],
 )
-
-
-class SolicitudLiquidacion(BaseModel):
-    anio_gravable: int = Field(default=_DEFAULTS.ANIO_GRAVABLE, ge=2000, le=2100)
-    # Decimal para todos los valores monetarios — evita errores de punto flotante
-    # IEEE 754 en cálculos presentados a la DIAN (Act. 0.5).
-    total_ingresos_brutos_pesos: Decimal = Field(ge=0, decimal_places=2)
-    deducciones_imputables_pesos: Decimal = Field(ge=0, default=Decimal("0"), decimal_places=2)
-    ingreso_salarios_pesos: Decimal = Field(ge=0, default=Decimal("0"), decimal_places=2)
-    total_retenciones_pesos: Decimal = Field(ge=0, default=Decimal("0"), decimal_places=2)
-    patrimonio_liquido_anterior_pesos: Decimal = Field(default=Decimal("0"), decimal_places=2)
-    # Si se provee, el resultado se persiste en el periodo gravable indicado.
-    periodo_id: uuid.UUID | None = Field(default=None)
-
-
-class RespuestaLiquidacion(BaseModel):
-    renta_liquida_gravable_pesos: Decimal
-    impuesto_uvt: Decimal
-    impuesto_a_cargo_pesos: Decimal
-    total_retenciones_pesos: Decimal
-    saldo_pesos: Decimal
-    es_saldo_a_pagar: bool
-    anio_gravable: int
-    uvt_utilizada: Decimal
-    persistido: bool = False
 
 
 @router.post("/calcular", response_model=RespuestaLiquidacion)

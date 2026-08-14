@@ -22,19 +22,32 @@ Diseño deliberado
   (DELETE WHERE periodo_id = X, luego INSERT). No hay versionado aquí;
   el historial de cambios vive en auditoria_cambio.
 
+Cambio en DT-8
+───────────────
+Los campos `monto_pesos`, `monto_informado_pesos`, `monto_efectivo_pesos`
+y `tope_valor_pesos` tenían type hint `float` aunque la columna de BD es
+`Numeric(18, 2)`. SQLAlchemy devuelve `Decimal` al leer desde PostgreSQL,
+por lo que el type hint `float` era incorrecto y confundía a mypy y a
+cualquier herramienta de análisis estático.
+
+Corrección: `float` → `Decimal` en los cuatro campos.
+No hay migración de BD — la columna Numeric(18, 2) no cambia.
+
 Referencias
 ───────────
   Act. 1.2  — creación de este módulo
   Act. 3.1  — mapper resultado → casillas Formulario 210 (consume estas tablas)
   Act. 3.3  — service layer (LiquidacionService usará estas tablas)
+  DT-8      — corrección de type hints float → Decimal
   docs/ARQUITECTURA.md §6 — deuda técnica resuelta por esta actividad
 """
 
 import enum
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, Boolean
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -115,8 +128,9 @@ class IngresoCedular(Base):
         nullable=False,
     )
 
-    # Valor informado por el contribuyente en pesos colombianos.
-    monto_pesos: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
+    # DT-8: float → Decimal. SQLAlchemy mapea Numeric(18,2) a Decimal al leer
+    # desde PostgreSQL. El type hint float era incorrecto y confundía a mypy.
+    monto_pesos: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
 
     # Descripción libre opcional (ej: "Empleador: Empresa XYZ S.A.S.")
     descripcion: Mapped[str | None] = mapped_column(String(300), nullable=True)
@@ -160,18 +174,16 @@ class Deduccion(Base):
         nullable=False,
     )
 
-    # Valor original informado por el contribuyente.
-    monto_informado_pesos: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
-
-    # Valor efectivamente aplicado tras los topes normativos.
-    # Igual a monto_informado_pesos si no se aplicó ningún tope.
-    monto_efectivo_pesos: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
+    # DT-8: float → Decimal en los tres campos monetarios.
+    # La columna de BD es Numeric(18, 2) — sin cambio de migración.
+    monto_informado_pesos: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    monto_efectivo_pesos:  Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
 
     # True si el motor de reglas recortó monto_informado al tope normativo.
     tope_aplicado: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    # Tope normativo que se aplicó, expresado en pesos (para trazabilidad).
-    tope_valor_pesos: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)
+    # DT-8: float | None → Decimal | None
+    tope_valor_pesos: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
 
     descripcion: Mapped[str | None] = mapped_column(String(300), nullable=True)
 
