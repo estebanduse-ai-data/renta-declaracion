@@ -19,11 +19,10 @@ class ActualizarUsuario(BaseModel):
 
 
 class RespuestaUsuario(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: uuid.UUID
     email: str
     nombre: str
     rol: RolUsuario
     activo: bool
-
-    class Config:
-        from_attributes = True

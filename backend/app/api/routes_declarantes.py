@@ -123,8 +123,8 @@ def crear_periodo(
             db,
             declarante_id=declarante_id,
             anio=solicitud.anio,
-            patrimonio_bruto=float(solicitud.patrimonio_bruto) if solicitud.patrimonio_bruto else 0,
-            pasivos=float(solicitud.pasivos) if solicitud.pasivos else 0,
+            patrimonio_bruto=solicitud.patrimonio_bruto,
+            pasivos=solicitud.pasivos,
         )
         db.commit()
         db.refresh(periodo)

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 
 from app.rules_engine import parametros_2025 as P
@@ -112,7 +114,7 @@ def test_cesantias_ingreso_intermedio_aplica_porcentaje_parcial():
         uvt=P.UVT,
         tabla_exencion_uvt_mensual=P.TABLA_EXENCION_CESANTIAS_UVT_MENSUAL,
     )
-    assert resultado == pytest.approx(a_pesos(1_000, P.UVT) * 0.80)
+    assert resultado == pytest.approx(float(a_pesos(Decimal("1000"), P.UVT) * Decimal("0.80")))
 
 
 def test_beca_de_estudio_pura_es_totalmente_exenta():

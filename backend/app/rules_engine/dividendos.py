@@ -1,18 +1,24 @@
 """
 Cédula de dividendos y participaciones — artículo 242 E.T. (modificado por
 Ley 2277 de 2022).
+
+Cambios en fix/decimal-float-type-errors
+─────────────────────────────────────────
+Migración de `float` a `Decimal` para alinear con el motor de reglas (DT-5).
 """
+
+from decimal import Decimal
 
 from app.rules_engine.tarifa import a_uvt, calcular_impuesto_uvt, a_pesos
 
 
 def calcular_impuesto_dividendos(
     *,
-    dividendos_gravados_pesos: float,
-    dividendos_no_gravados_sociedad_pesos: float,
-    uvt: float,
+    dividendos_gravados_pesos: Decimal,
+    dividendos_no_gravados_sociedad_pesos: Decimal,
+    uvt: Decimal,
     tabla_tarifa_dividendos_uvt: list,
-    tarifa_dividendos_no_gravados_sociedad: float,
+    tarifa_dividendos_no_gravados_sociedad: Decimal,
 ) -> dict:
     """
     Dos componentes:

@@ -20,15 +20,14 @@ class ActualizarDeclarante(BaseModel):
 
 
 class RespuestaDeclarante(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: uuid.UUID
     nit: str
     digito_verificacion: str
     primer_nombre: str
     primer_apellido: str
     actividad_economica: str
-
-    class Config:
-        from_attributes = True
 
 
 class CrearPeriodoGravable(BaseModel):
@@ -46,6 +45,8 @@ class ActualizarPeriodoGravable(BaseModel):
 
 
 class RespuestaPeriodoGravable(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: uuid.UUID
     declarante_id: uuid.UUID
     anio: int
@@ -55,6 +56,3 @@ class RespuestaPeriodoGravable(BaseModel):
     # Incluido en la respuesta para que el frontend pueda mostrar
     # el resultado de la última liquidación sin recalcular.
     resultado_liquidacion: dict[str, Any] | None = None
-
-    class Config:
-        from_attributes = True

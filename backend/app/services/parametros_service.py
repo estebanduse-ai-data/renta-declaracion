@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     # ejecución las funciones que los usan hacen el import localmente, para
     # que esta clase adaptadora (ParametrosVigentes) se pueda importar y
     # probar sin tener SQLAlchemy instalado — ver docs/GESTION_PROYECTO.md.
+    from decimal import Decimal
     from sqlalchemy.orm import Session
 
     from app.models.configuracion import ParametroTributario
@@ -58,73 +59,92 @@ class ParametrosVigentes:
     """
 
     def __init__(self, datos: dict):
+        from decimal import Decimal
+
+        def _d(v) -> Decimal:
+            """Convierte float/int/str a Decimal vía str para evitar errores IEEE 754.
+            Los valores del JSONB llegan como float — esto los hace compatibles
+            con el motor de reglas que opera en Decimal puro."""
+            if isinstance(v, Decimal):
+                return v
+            return Decimal(str(v))
+
         self.ANIO_GRAVABLE = datos["anio_gravable"]
-        self.UVT = datos["uvt"]
+        self.UVT = _d(datos["uvt"])
         self.TABLA_TARIFA_UVT = self._tabla_a_tuplas(datos["tabla_tarifa"])
-        self.LIMITE_RENTA_EXENTA_DEDUCCIONES_PORCENTAJE = datos[
+        self.LIMITE_RENTA_EXENTA_DEDUCCIONES_PORCENTAJE = _d(datos[
             "limite_renta_exenta_deducciones_porcentaje"
-        ]
-        self.TOPE_RENTA_EXENTA_DEDUCCIONES_UVT = datos["tope_renta_exenta_deducciones_uvt"]
-        self.PORCENTAJE_RENTA_EXENTA_LABORAL = datos["porcentaje_renta_exenta_laboral"]
-        self.TOPE_RENTA_EXENTA_LABORAL_UVT = datos["tope_renta_exenta_laboral_uvt"]
-        self.TARIFA_RENTA_PRESUNTIVA = datos["tarifa_renta_presuntiva"]
-        self.TOPE_VIVIENDA_HABITACION_UVT = datos["tope_vivienda_habitacion_uvt"]
-        self.TOPE_ACTIVOS_SECTOR_AGROPECUARIO_UVT = datos["tope_activos_sector_agropecuario_uvt"]
-        self.LIMITE_DESCUENTOS_TRIBUTARIOS_PORCENTAJE = datos[
+        ])
+        self.TOPE_RENTA_EXENTA_DEDUCCIONES_UVT = _d(datos["tope_renta_exenta_deducciones_uvt"])
+        self.PORCENTAJE_RENTA_EXENTA_LABORAL = _d(datos["porcentaje_renta_exenta_laboral"])
+        self.TOPE_RENTA_EXENTA_LABORAL_UVT = _d(datos["tope_renta_exenta_laboral_uvt"])
+        self.TARIFA_RENTA_PRESUNTIVA = _d(datos["tarifa_renta_presuntiva"])
+        self.TOPE_VIVIENDA_HABITACION_UVT = _d(datos["tope_vivienda_habitacion_uvt"])
+        self.TOPE_ACTIVOS_SECTOR_AGROPECUARIO_UVT = _d(datos["tope_activos_sector_agropecuario_uvt"])
+        self.LIMITE_DESCUENTOS_TRIBUTARIOS_PORCENTAJE = _d(datos[
             "limite_descuentos_tributarios_porcentaje"
-        ]
-        self.TOPE_PAGO_UNICA_CUOTA_UVT = datos["tope_pago_unica_cuota_uvt"]
-        self.TARIFA_GANANCIA_OCASIONAL_GENERAL = datos["tarifa_ganancia_ocasional_general"]
-        self.TARIFA_GANANCIA_OCASIONAL_LOTERIAS = datos["tarifa_ganancia_ocasional_loterias"]
-        self.TOPE_EXENTO_VENTA_CASA_HABITACION_UVT = datos["tope_exento_venta_casa_habitacion_uvt"]
-        self.PORCENTAJE_EXENTO_HERENCIA_GENERAL = datos["porcentaje_exento_herencia_general"]
-        self.TOPE_EXENTO_HERENCIA_GENERAL_UVT = datos["tope_exento_herencia_general_uvt"]
-        self.TOPE_EXENTO_HERENCIA_VIVIENDA_UVT = datos["tope_exento_herencia_vivienda_uvt"]
-        self.TOPE_PARTICIPACION_ACCIONES_BOLSA_NO_GRAVADO = datos[
+        ])
+        self.TOPE_PAGO_UNICA_CUOTA_UVT = _d(datos["tope_pago_unica_cuota_uvt"])
+        self.TARIFA_GANANCIA_OCASIONAL_GENERAL = _d(datos["tarifa_ganancia_ocasional_general"])
+        self.TARIFA_GANANCIA_OCASIONAL_LOTERIAS = _d(datos["tarifa_ganancia_ocasional_loterias"])
+        self.TOPE_EXENTO_VENTA_CASA_HABITACION_UVT = _d(datos["tope_exento_venta_casa_habitacion_uvt"])
+        self.PORCENTAJE_EXENTO_HERENCIA_GENERAL = _d(datos["porcentaje_exento_herencia_general"])
+        self.TOPE_EXENTO_HERENCIA_GENERAL_UVT = _d(datos["tope_exento_herencia_general_uvt"])
+        self.TOPE_EXENTO_HERENCIA_VIVIENDA_UVT = _d(datos["tope_exento_herencia_vivienda_uvt"])
+        self.TOPE_PARTICIPACION_ACCIONES_BOLSA_NO_GRAVADO = _d(datos[
             "tope_participacion_acciones_bolsa_no_gravado"
-        ]
+        ])
+        # Los factores art.73 permanecen como float — son informativos y se
+        # convierten a Decimal en ganancias_ocasionales.costo_fiscal_ajustado().
         self.FACTORES_AJUSTE_ART73_POR_ANIO = {
             int(k): v for k, v in datos["factores_ajuste_art73_por_anio"].items()
         }
         self.TABLA_TARIFA_DIVIDENDOS_UVT = self._tabla_a_tuplas(datos["tabla_tarifa_dividendos"])
-        self.TARIFA_DIVIDENDOS_NO_GRAVADOS_SOCIEDAD = datos["tarifa_dividendos_no_gravados_sociedad"]
-        self.TOPE_DEDUCCION_INTERESES_VIVIENDA_UVT = datos["tope_deduccion_intereses_vivienda_uvt"]
-        self.TOPE_DEDUCCION_SALUD_UVT_MENSUAL = datos["tope_deduccion_salud_uvt_mensual"]
-        self.PORCENTAJE_DEDUCCION_DEPENDIENTES = datos["porcentaje_deduccion_dependientes"]
-        self.TOPE_DEDUCCION_DEPENDIENTES_UVT_MENSUAL = datos["tope_deduccion_dependientes_uvt_mensual"]
+        self.TARIFA_DIVIDENDOS_NO_GRAVADOS_SOCIEDAD = _d(datos["tarifa_dividendos_no_gravados_sociedad"])
+        self.TOPE_DEDUCCION_INTERESES_VIVIENDA_UVT = _d(datos["tope_deduccion_intereses_vivienda_uvt"])
+        self.TOPE_DEDUCCION_SALUD_UVT_MENSUAL = _d(datos["tope_deduccion_salud_uvt_mensual"])
+        self.PORCENTAJE_DEDUCCION_DEPENDIENTES = _d(datos["porcentaje_deduccion_dependientes"])
+        self.TOPE_DEDUCCION_DEPENDIENTES_UVT_MENSUAL = _d(datos["tope_deduccion_dependientes_uvt_mensual"])
         self.MAXIMO_DEPENDIENTES_RECONOCIDOS = datos["maximo_dependientes_reconocidos"]
         self.TABLA_EXENCION_CESANTIAS_UVT_MENSUAL = [
-            (t["limite_inferior"], t["limite_superior"], t["porcentaje_exento"])
+            (_d(t["limite_inferior"]), t["limite_superior"], _d(t["porcentaje_exento"]))
             for t in datos["tabla_exencion_cesantias_uvt_mensual"]
         ]
-        self.TARIFA_DESCUENTO_DONACIONES = datos["tarifa_descuento_donaciones"]
-        self.SANCION_EXTEMPORANEIDAD_PORCENTAJE_MENSUAL = datos[
+        self.TARIFA_DESCUENTO_DONACIONES = _d(datos["tarifa_descuento_donaciones"])
+        self.SANCION_EXTEMPORANEIDAD_PORCENTAJE_MENSUAL = _d(datos[
             "sancion_extemporaneidad_porcentaje_mensual"
-        ]
-        self.SANCION_EXTEMPORANEIDAD_TOPE_PORCENTAJE_IMPUESTO = datos[
+        ])
+        self.SANCION_EXTEMPORANEIDAD_TOPE_PORCENTAJE_IMPUESTO = _d(datos[
             "sancion_extemporaneidad_tope_porcentaje_impuesto"
-        ]
-        self.SANCION_EXTEMPORANEIDAD_PORCENTAJE_MENSUAL_SOBRE_INGRESOS = datos[
+        ])
+        self.SANCION_EXTEMPORANEIDAD_PORCENTAJE_MENSUAL_SOBRE_INGRESOS = _d(datos[
             "sancion_extemporaneidad_porcentaje_mensual_sobre_ingresos"
-        ]
-        self.SANCION_MINIMA_UVT = datos["sancion_minima_uvt"]
-        self.SANCION_CORRECCION_ANTES_EMPLAZAMIENTO_PORCENTAJE = datos[
+        ])
+        self.SANCION_MINIMA_UVT = _d(datos["sancion_minima_uvt"])
+        self.SANCION_CORRECCION_ANTES_EMPLAZAMIENTO_PORCENTAJE = _d(datos[
             "sancion_correccion_antes_emplazamiento_porcentaje"
-        ]
-        self.SANCION_CORRECCION_DESPUES_EMPLAZAMIENTO_PORCENTAJE = datos[
+        ])
+        self.SANCION_CORRECCION_DESPUES_EMPLAZAMIENTO_PORCENTAJE = _d(datos[
             "sancion_correccion_despues_emplazamiento_porcentaje"
-        ]
-        self.ANTICIPO_PORCENTAJE_PRIMERA_VEZ = datos["anticipo_porcentaje_primera_vez"]
-        self.ANTICIPO_PORCENTAJE_SEGUNDA_VEZ = datos["anticipo_porcentaje_segunda_vez"]
-        self.ANTICIPO_PORCENTAJE_TERCERA_VEZ_EN_ADELANTE = datos[
+        ])
+        self.ANTICIPO_PORCENTAJE_PRIMERA_VEZ = _d(datos["anticipo_porcentaje_primera_vez"])
+        self.ANTICIPO_PORCENTAJE_SEGUNDA_VEZ = _d(datos["anticipo_porcentaje_segunda_vez"])
+        self.ANTICIPO_PORCENTAJE_TERCERA_VEZ_EN_ADELANTE = _d(datos[
             "anticipo_porcentaje_tercera_vez_en_adelante"
-        ]
+        ])
         self.LIMITE_ANIOS_COMPENSACION_PERDIDAS = datos["limite_anios_compensacion_perdidas"]
 
     @staticmethod
     def _tabla_a_tuplas(tabla: list[dict]) -> list[tuple]:
+        from decimal import Decimal
+
+        def _d(v):
+            if v is None:
+                return None
+            return v if isinstance(v, Decimal) else Decimal(str(v))
+
         return [
-            (t["limite_inferior"], t["limite_superior"], t["tarifa"], t["base_uvt"])
+            (_d(t["limite_inferior"]), _d(t["limite_superior"]), _d(t["tarifa"]), _d(t["base_uvt"]))
             for t in tabla
         ]
 
@@ -196,13 +216,18 @@ def activar_parametro_tributario(
     return nuevo
 
 
-def obtener_trm_vigente(db: Session, fecha: date) -> float:
+def obtener_trm_vigente(db: Session, fecha: date) -> "Decimal":
     """
     Devuelve la TRM aplicable a una fecha: la cargada exactamente para esa
     fecha, o si no existe, la más reciente cargada ANTES de esa fecha (los
     fines de semana y festivos no tienen TRM propia y se usa la del último
     día hábil, igual que en la práctica cambiaria real).
+
+    Devuelve Decimal (no float) para que sea compatible con el motor de
+    reglas (moneda_extranjera.py) sin necesidad de conversión en el llamador.
     """
+    from decimal import Decimal
+
     from app.models.configuracion import TRMDiaria
 
     registro = (
@@ -213,10 +238,17 @@ def obtener_trm_vigente(db: Session, fecha: date) -> float:
     )
     if registro is None:
         raise TRMNoConfiguradaError(fecha)
-    return float(registro.valor)
+    # Convertir vía str para preservar exactitud (evita errores IEEE 754).
+    return Decimal(str(registro.valor))
 
 
-def obtener_tasa_interes_mora_vigente(db: Session, fecha: date) -> float:
+def obtener_tasa_interes_mora_vigente(db: Session, fecha: date) -> "Decimal":
+    """
+    Devuelve Decimal (no float) para que sea compatible con sanciones.py
+    (calcular_interes_mora) sin conversión en el llamador.
+    """
+    from decimal import Decimal
+
     from app.models.configuracion import TasaInteresMora
 
     registro = (
@@ -229,7 +261,7 @@ def obtener_tasa_interes_mora_vigente(db: Session, fecha: date) -> float:
     )
     if registro is None:
         # Respaldo de desarrollo con la tasa referencial del módulo estático.
-        return _DEFAULTS.TASA_INTERES_MORA_DIARIA_REFERENCIAL
+        return Decimal(str(_DEFAULTS.TASA_INTERES_MORA_DIARIA_REFERENCIAL))
     if registro.vigente_hasta is not None and registro.vigente_hasta < fecha:
-        return _DEFAULTS.TASA_INTERES_MORA_DIARIA_REFERENCIAL
-    return float(registro.tasa_diaria)
+        return Decimal(str(_DEFAULTS.TASA_INTERES_MORA_DIARIA_REFERENCIAL))
+    return Decimal(str(registro.tasa_diaria))

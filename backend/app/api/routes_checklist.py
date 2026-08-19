@@ -88,14 +88,13 @@ def _inicializar_faltantes(periodo_id: uuid.UUID, db: Session) -> None:
 # ── Schemas de respuesta ───────────────────────────────────────────────────────
 
 class ItemChecklist(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: uuid.UUID
     tipo_documento: TipoDocumento
     recibido: bool
     marcado_por_id: uuid.UUID | None
     actualizado_en: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class RespuestaChecklist(BaseModel):

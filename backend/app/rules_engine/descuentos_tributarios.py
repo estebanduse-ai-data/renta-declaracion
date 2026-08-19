@@ -1,31 +1,38 @@
 """
 Descuentos tributarios (créditos directos contra el impuesto a cargo, no
 deducciones de la base gravable) — art. 254 a 259 E.T.
+
+Cambios en fix/decimal-float-type-errors
+─────────────────────────────────────────
+Migración de `float` a `Decimal` para alinear con el motor de reglas (DT-5).
 """
 
 from dataclasses import dataclass
+from decimal import Decimal
+
+_CERO = Decimal("0")
 
 
 def calcular_descuento_donaciones(
-    *, valor_donado_pesos: float, tarifa_descuento: float
-) -> float:
-    return max(valor_donado_pesos, 0.0) * tarifa_descuento
+    *, valor_donado_pesos: Decimal, tarifa_descuento: Decimal
+) -> Decimal:
+    return max(valor_donado_pesos, _CERO) * tarifa_descuento
 
 
 @dataclass
 class ResultadoDescuentosTributarios:
-    total_descuentos_solicitados_pesos: float
-    limite_aplicable_pesos: float
-    descuento_aplicado_pesos: float
-    impuesto_neto_pesos: float
-    descuento_no_utilizado_pesos: float
+    total_descuentos_solicitados_pesos: Decimal
+    limite_aplicable_pesos: Decimal
+    descuento_aplicado_pesos: Decimal
+    impuesto_neto_pesos: Decimal
+    descuento_no_utilizado_pesos: Decimal
 
 
 def aplicar_limite_descuentos_tributarios(
     *,
-    impuesto_basico_renta_pesos: float,
-    total_descuentos_pesos: float,
-    limite_porcentaje: float,
+    impuesto_basico_renta_pesos: Decimal,
+    total_descuentos_pesos: Decimal,
+    limite_porcentaje: Decimal,
 ) -> ResultadoDescuentosTributarios:
     """
     El artículo 259 E.T. limita la suma de todos los descuentos tributarios
@@ -38,10 +45,10 @@ def aplicar_limite_descuentos_tributarios(
     siguientes según su norma particular — no modelado todavía, ver
     docs/FALTANTES.md.
     """
-    limite_pesos = max(impuesto_basico_renta_pesos, 0.0) * limite_porcentaje
-    descuento_aplicado = min(max(total_descuentos_pesos, 0.0), limite_pesos)
-    impuesto_neto = max(impuesto_basico_renta_pesos - descuento_aplicado, 0.0)
-    no_utilizado = max(total_descuentos_pesos - descuento_aplicado, 0.0)
+    limite_pesos = max(impuesto_basico_renta_pesos, _CERO) * limite_porcentaje
+    descuento_aplicado = min(max(total_descuentos_pesos, _CERO), limite_pesos)
+    impuesto_neto = max(impuesto_basico_renta_pesos - descuento_aplicado, _CERO)
+    no_utilizado = max(total_descuentos_pesos - descuento_aplicado, _CERO)
 
     return ResultadoDescuentosTributarios(
         total_descuentos_solicitados_pesos=total_descuentos_pesos,

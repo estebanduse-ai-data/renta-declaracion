@@ -123,7 +123,7 @@ def crear_parametros_tributarios(
     nuevo = activar_parametro_tributario(
         db,
         anio=payload.anio_gravable,
-        valores=payload.model_dump(mode="json"),
+        valores=payload.model_dump(mode="python"),
         usuario_id=usuario.id,
         nota=nota,
     )
@@ -151,11 +151,14 @@ def cargar_trm(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(requiere_rol(RolUsuario.ADMIN)),
 ):
+    """valor se recibe como float (query param) y se convierte a str para la
+    auditoría JSONB, evitando TypeError: Decimal not JSON serializable."""
+    from decimal import Decimal
     if valor <= 0:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="La TRM debe ser positiva.")
 
     existente = db.query(TRMDiaria).filter(TRMDiaria.fecha == fecha).first()
-    valores_anteriores = {"valor": float(existente.valor)} if existente else None
+    valores_anteriores = {"valor": str(existente.valor)} if existente else None
 
     if existente is not None:
         existente.valor = valor
@@ -177,11 +180,11 @@ def cargar_trm(
         entidad_id=str(registro.id),
         accion=accion,
         valores_anteriores=valores_anteriores,
-        valores_nuevos={"fecha": str(fecha), "valor": valor, "fuente": fuente},
+        valores_nuevos={"fecha": str(fecha), "valor": str(valor), "fuente": fuente},
     )
     db.commit()
     db.refresh(registro)
-    return {"id": registro.id, "fecha": registro.fecha, "valor": float(registro.valor)}
+    return {"id": registro.id, "fecha": registro.fecha, "valor": str(registro.valor)}
 
 
 # --- Tasa de interés de mora ----------------------------------------------
@@ -234,9 +237,9 @@ def cargar_tasa_interes_mora(
         valores_nuevos={
             "vigente_desde": str(vigente_desde),
             "vigente_hasta": str(vigente_hasta) if vigente_hasta else None,
-            "tasa_diaria": tasa_diaria,
+            "tasa_diaria": str(tasa_diaria),
         },
     )
     db.commit()
     db.refresh(registro)
-    return {"id": registro.id, "vigente_desde": registro.vigente_desde, "tasa_diaria": float(registro.tasa_diaria)}
+    return {"id": registro.id, "vigente_desde": registro.vigente_desde, "tasa_diaria": str(registro.tasa_diaria)}

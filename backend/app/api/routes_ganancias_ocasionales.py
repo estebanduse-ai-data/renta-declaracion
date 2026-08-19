@@ -1,3 +1,15 @@
+"""
+routes_ganancias_ocasionales.py — Endpoints de ganancias ocasionales.
+
+Cambios en fix/decimal-float-type-errors
+─────────────────────────────────────────
+• Eliminados todos los float() sobre valores Decimal del schema (causaban
+  TypeError: Decimal * float en el motor de reglas).
+• porcentaje_participacion_vendida migrado de float a Decimal (era el único
+  campo no monetario que el motor recibe y compara contra un Decimal).
+• _redondear() simplificada: ya recibe Decimal directamente del motor.
+"""
+
 from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import APIRouter, Depends
@@ -23,11 +35,12 @@ router = APIRouter(
 )
 
 _COP = Decimal("1")
+_TASA = Decimal("0.0001")
 
 
-def _redondear(valor: float) -> Decimal:
-    """Convierte el float del motor de reglas a Decimal redondeado al peso."""
-    return Decimal(str(valor)).quantize(_COP, rounding=ROUND_HALF_UP)
+def _redondear(valor: Decimal) -> Decimal:
+    """Redondea al peso colombiano más cercano."""
+    return valor.quantize(_COP, rounding=ROUND_HALF_UP)
 
 
 class RespuestaGananciaOcasional(BaseModel):
@@ -43,10 +56,7 @@ def _a_respuesta(resultado) -> RespuestaGananciaOcasional:
         ganancia_bruta_pesos=_redondear(resultado.ganancia_bruta_pesos),
         porcion_exenta_pesos=_redondear(resultado.porcion_exenta_pesos),
         base_gravable_pesos=_redondear(resultado.base_gravable_pesos),
-        # tarifa_aplicada es un coeficiente (ej. 0.15), se guarda con 4 decimales
-        tarifa_aplicada=Decimal(str(resultado.tarifa_aplicada)).quantize(
-            Decimal("0.0001"), rounding=ROUND_HALF_UP
-        ),
+        tarifa_aplicada=resultado.tarifa_aplicada.quantize(_TASA, rounding=ROUND_HALF_UP),
         impuesto_pesos=_redondear(resultado.impuesto_pesos),
     )
 
@@ -65,8 +75,8 @@ def venta_inmueble(
 ) -> RespuestaGananciaOcasional:
     P = obtener_parametros_vigentes(db, solicitud.anio_gravable)
     resultado = calcular_ganancia_ocasional_venta_inmueble(
-        precio_venta_pesos=float(solicitud.precio_venta_pesos),
-        costo_adquisicion_pesos=float(solicitud.costo_adquisicion_pesos),
+        precio_venta_pesos=solicitud.precio_venta_pesos,
+        costo_adquisicion_pesos=solicitud.costo_adquisicion_pesos,
         anio_adquisicion=solicitud.anio_adquisicion,
         es_casa_habitacion_unica=solicitud.es_casa_habitacion_unica,
         uvt=P.UVT,
@@ -82,9 +92,9 @@ class SolicitudVentaAcciones(BaseModel):
     precio_venta_pesos: Decimal = Field(ge=0, decimal_places=2)
     costo_fiscal_pesos: Decimal = Field(ge=0, decimal_places=2)
     cotiza_en_bolsa: bool = False
-    # porcentaje_participacion_vendida es una proporción (0-1), no un monto;
-    # se mantiene como float porque no es un valor monetario en pesos.
-    porcentaje_participacion_vendida: float = Field(ge=0, le=1, default=0)
+    # Proporción (0–1) — se mantiene como Decimal para ser compatible con el
+    # motor de reglas que lo compara contra tope_participacion_bolsa_no_gravado (Decimal).
+    porcentaje_participacion_vendida: Decimal = Field(ge=0, le=1, default=Decimal("0"))
 
 
 @router.post("/venta-acciones", response_model=RespuestaGananciaOcasional)
@@ -93,8 +103,8 @@ def venta_acciones(
 ) -> RespuestaGananciaOcasional:
     P = obtener_parametros_vigentes(db, solicitud.anio_gravable)
     resultado = calcular_ganancia_ocasional_venta_acciones(
-        precio_venta_pesos=float(solicitud.precio_venta_pesos),
-        costo_fiscal_pesos=float(solicitud.costo_fiscal_pesos),
+        precio_venta_pesos=solicitud.precio_venta_pesos,
+        costo_fiscal_pesos=solicitud.costo_fiscal_pesos,
         cotiza_en_bolsa=solicitud.cotiza_en_bolsa,
         porcentaje_participacion_vendida=solicitud.porcentaje_participacion_vendida,
         uvt=P.UVT,
@@ -114,7 +124,7 @@ class SolicitudHerencia(BaseModel):
 def herencia(solicitud: SolicitudHerencia, db: Session = Depends(get_db)) -> RespuestaGananciaOcasional:
     P = obtener_parametros_vigentes(db, solicitud.anio_gravable)
     resultado = calcular_ganancia_ocasional_herencia(
-        valor_activo_pesos=float(solicitud.valor_activo_pesos),
+        valor_activo_pesos=solicitud.valor_activo_pesos,
         es_vivienda_habitacion_causante=solicitud.es_vivienda_habitacion_causante,
         uvt=P.UVT,
         tarifa_general=P.TARIFA_GANANCIA_OCASIONAL_GENERAL,
@@ -134,7 +144,7 @@ class SolicitudLoteria(BaseModel):
 def loteria(solicitud: SolicitudLoteria, db: Session = Depends(get_db)) -> RespuestaGananciaOcasional:
     P = obtener_parametros_vigentes(db, solicitud.anio_gravable)
     resultado = calcular_ganancia_ocasional_loteria(
-        valor_premio_pesos=float(solicitud.valor_premio_pesos),
+        valor_premio_pesos=solicitud.valor_premio_pesos,
         tarifa_loterias=P.TARIFA_GANANCIA_OCASIONAL_LOTERIAS,
     )
     return _a_respuesta(resultado)

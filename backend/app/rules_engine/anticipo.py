@@ -10,17 +10,25 @@ El contribuyente puede elegir el menor valor entre dos metodologías:
 
 El porcentaje depende de si es la primera, segunda, o tercera vez (o más)
 que el contribuyente declara.
+
+Cambios en fix/decimal-float-type-errors
+─────────────────────────────────────────
+Migración de `float` a `Decimal` para alinear con el motor de reglas (DT-5).
+Los porcentajes del anticipo ya vienen como Decimal desde parametros_2025.py.
 """
 
 from dataclasses import dataclass
+from decimal import Decimal
+
+_CERO = Decimal("0")
 
 
 def _porcentaje_segun_anios_declarando(
     anios_declarando: int,
-    porcentaje_primera_vez: float,
-    porcentaje_segunda_vez: float,
-    porcentaje_tercera_vez_en_adelante: float,
-) -> float:
+    porcentaje_primera_vez: Decimal,
+    porcentaje_segunda_vez: Decimal,
+    porcentaje_tercera_vez_en_adelante: Decimal,
+) -> Decimal:
     if anios_declarando <= 1:
         return porcentaje_primera_vez
     if anios_declarando == 2:
@@ -30,23 +38,23 @@ def _porcentaje_segun_anios_declarando(
 
 @dataclass
 class ResultadoAnticipo:
-    porcentaje_aplicado: float
-    anticipo_metodo_individual_pesos: float
-    anticipo_metodo_promedio_pesos: float
-    anticipo_a_pagar_pesos: float
-    retenciones_estimadas_anio_siguiente_pesos: float
-    saldo_anticipo_neto_pesos: float
+    porcentaje_aplicado: Decimal
+    anticipo_metodo_individual_pesos: Decimal
+    anticipo_metodo_promedio_pesos: Decimal
+    anticipo_a_pagar_pesos: Decimal
+    retenciones_estimadas_anio_siguiente_pesos: Decimal
+    saldo_anticipo_neto_pesos: Decimal
 
 
 def calcular_anticipo_renta(
     *,
-    impuesto_neto_actual_pesos: float,
-    impuesto_neto_anterior_pesos: float,
+    impuesto_neto_actual_pesos: Decimal,
+    impuesto_neto_anterior_pesos: Decimal,
     anios_declarando: int,
-    retenciones_estimadas_anio_siguiente_pesos: float = 0.0,
-    porcentaje_primera_vez: float,
-    porcentaje_segunda_vez: float,
-    porcentaje_tercera_vez_en_adelante: float,
+    retenciones_estimadas_anio_siguiente_pesos: Decimal = _CERO,
+    porcentaje_primera_vez: Decimal,
+    porcentaje_segunda_vez: Decimal,
+    porcentaje_tercera_vez_en_adelante: Decimal,
 ) -> ResultadoAnticipo:
     porcentaje = _porcentaje_segun_anios_declarando(
         anios_declarando,
@@ -55,15 +63,15 @@ def calcular_anticipo_renta(
         porcentaje_tercera_vez_en_adelante,
     )
 
-    metodo_individual = max(impuesto_neto_actual_pesos, 0.0) * porcentaje
+    metodo_individual = max(impuesto_neto_actual_pesos, _CERO) * porcentaje
 
-    promedio = (max(impuesto_neto_actual_pesos, 0.0) + max(impuesto_neto_anterior_pesos, 0.0)) / 2
+    promedio = (max(impuesto_neto_actual_pesos, _CERO) + max(impuesto_neto_anterior_pesos, _CERO)) / Decimal("2")
     metodo_promedio = promedio * porcentaje
 
     # El contribuyente elige el menor valor entre las dos metodologías.
     anticipo_elegido = min(metodo_individual, metodo_promedio)
 
-    saldo_neto = max(anticipo_elegido - retenciones_estimadas_anio_siguiente_pesos, 0.0)
+    saldo_neto = max(anticipo_elegido - retenciones_estimadas_anio_siguiente_pesos, _CERO)
 
     return ResultadoAnticipo(
         porcentaje_aplicado=porcentaje,

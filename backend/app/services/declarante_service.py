@@ -256,8 +256,8 @@ def crear_periodo(
     *,
     declarante_id: uuid.UUID,
     anio: int,
-    patrimonio_bruto: float = 0,
-    pasivos: float = 0,
+    patrimonio_bruto=0,
+    pasivos=0,
 ) -> object:
     """
     Crea un PeriodoGravable para el declarante y año indicados.
@@ -326,6 +326,12 @@ def actualizar_periodo(
     for campo, valor in datos.items():
         setattr(periodo, campo, valor)
 
+    # Convertir Decimal a str para que el JSONB de auditoria sea serializable
+    # con json.dumps estándar (psycopg2 no sabe serializar Decimal).
+    datos_auditoria = {
+        k: str(v) if hasattr(v, "__class__") and v.__class__.__name__ == "Decimal" else v
+        for k, v in datos.items()
+    }
     db.add(periodo)
     registrar_auditoria(
         db,
@@ -334,7 +340,7 @@ def actualizar_periodo(
         entidad_id=str(periodo_id),
         accion="actualizar",
         valores_anteriores=valores_anteriores,
-        valores_nuevos=datos,
+        valores_nuevos=datos_auditoria,
     )
     return periodo
 
