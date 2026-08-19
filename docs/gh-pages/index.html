@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Renta Declaración — Tax Engine for Colombia</title>
+<style>
+  /* ── Design tokens ─────────────────────────────────────────────────────── */
+  :root {
+    --ink:        #0f1117;
+    --ink-soft:   #4a4f5e;
+    --ink-muted:  #8b8fa8;
+    --paper:      #f8f7f4;
+    --paper-warm: #f0ede6;
+    --rule:       #e2ddd6;
+    --accent:     #1a3a5c;   /* deep navy — authority, finance */
+    --accent2:    #c9773a;   /* warm copper — Colombian warmth */
+    --accent3:    #2d6a4f;   /* deep green — positive results */
+    --code-bg:    #111827;
+    --code-fg:    #e2e8f0;
+    --code-green: #86efac;
+    --code-blue:  #93c5fd;
+    --code-amber: #fcd34d;
+    --code-pink:  #f9a8d4;
+  }
+
+  /* ── Reset ─────────────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.7;
+    font-size: 17px;
+  }
+
+  /* ── Typography scale ─────────────────────────────────────────────────── */
+  .mono { font-family: 'Courier New', monospace; }
+  .sans { font-family: -apple-system, 'Helvetica Neue', sans-serif; }
+
+  /* ── Layout ────────────────────────────────────────────────────────────── */
+  .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+  .wide      { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  section { padding: 80px 0; }
+  section + section { border-top: 1px solid var(--rule); }
+
+  /* ── Navigation ─────────────────────────────────────────────────────────── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(248,247,244,0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--rule);
+    padding: 12px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-brand {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: bold;
+    letter-spacing: 0.05em;
+    text-decoration: none;
+  }
+  .nav-links { display: flex; gap: 28px; list-style: none; }
+  .nav-links a {
+    font-family: -apple-system, sans-serif;
+    font-size: 13px;
+    color: var(--ink-soft);
+    text-decoration: none;
+    letter-spacing: 0.02em;
+  }
+  .nav-links a:hover { color: var(--accent2); }
+  .nav-gh {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: var(--paper);
+    background: var(--accent);
+    padding: 6px 14px;
+    border-radius: 4px;
+    text-decoration: none;
+  }
+  .nav-gh:hover { background: var(--accent2); }
+
+  /* ── Hero ───────────────────────────────────────────────────────────────── */
+  #hero {
+    padding-top: 140px;
+    padding-bottom: 80px;
+    border-bottom: 1px solid var(--rule);
+    background: linear-gradient(180deg, #eef2f7 0%, var(--paper) 100%);
+  }
+  .eyebrow {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent2);
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: clamp(36px, 6vw, 62px);
+    line-height: 1.1;
+    color: var(--accent);
+    font-weight: normal;
+    letter-spacing: -0.02em;
+    margin-bottom: 24px;
+  }
+  h1 em { font-style: normal; color: var(--accent2); }
+  .hero-sub {
+    font-size: 19px;
+    color: var(--ink-soft);
+    max-width: 560px;
+    margin-bottom: 40px;
+    line-height: 1.6;
+    font-family: -apple-system, sans-serif;
+  }
+  .hero-badges { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 40px; }
+  .badge {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    letter-spacing: 0.05em;
+  }
+  .badge-navy  { background: var(--accent);  color: white; }
+  .badge-copper{ background: var(--accent2); color: white; }
+  .badge-green { background: var(--accent3); color: white; }
+  .badge-gray  { background: var(--rule); color: var(--ink-soft); }
+
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    overflow: hidden;
+    max-width: 640px;
+    background: white;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .stat {
+    padding: 20px 24px;
+    border-right: 1px solid var(--rule);
+  }
+  .stat:last-child { border-right: none; }
+  .stat-n {
+    font-family: 'Courier New', monospace;
+    font-size: 28px;
+    font-weight: bold;
+    color: var(--accent);
+    display: block;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stat-l {
+    font-family: -apple-system, sans-serif;
+    font-size: 11px;
+    color: var(--ink-muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Section headings ───────────────────────────────────────────────────── */
+  h2 {
+    font-size: 30px;
+    font-weight: normal;
+    color: var(--accent);
+    letter-spacing: -0.01em;
+    margin-bottom: 12px;
+  }
+  h3 {
+    font-size: 17px;
+    font-family: -apple-system, sans-serif;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 8px;
+    margin-top: 28px;
+  }
+  .section-intro {
+    font-family: -apple-system, sans-serif;
+    font-size: 15px;
+    color: var(--ink-soft);
+    margin-bottom: 40px;
+    max-width: 600px;
+  }
+
+  /* ── Wizard demo ─────────────────────────────────────────────────────────── */
+  .wizard-shell {
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }
+  .wizard-topbar {
+    background: var(--accent);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .topbar-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+  }
+  .topbar-title {
+    font-family: -apple-system, sans-serif;
+    font-size: 13px;
+    color: rgba(255,255,255,0.8);
+    margin-left: 4px;
+  }
+  .topbar-badge {
+    margin-left: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    background: rgba(255,255,255,0.15);
+    color: white;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+  .wizard-body {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+  }
+  .wizard-sidebar {
+    background: #f4f6f9;
+    border-right: 1px solid var(--rule);
+    padding: 24px 0;
+  }
+  .wizard-step {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 20px;
+    font-family: -apple-system, sans-serif;
+    font-size: 13px;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .wizard-step:hover { background: rgba(0,0,0,0.04); }
+  .wizard-step.active { background: white; color: var(--accent); font-weight: 600; }
+  .wizard-step.done   { color: var(--accent3); }
+  .step-icon {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: bold; flex-shrink: 0;
+    border: 1.5px solid currentColor;
+    font-family: 'Courier New', monospace;
+  }
+  .wizard-step.done .step-icon {
+    background: var(--accent3); border-color: var(--accent3); color: white;
+  }
+  .wizard-step.active .step-icon {
+    background: var(--accent); border-color: var(--accent); color: white;
+  }
+  .wizard-main {
+    padding: 32px;
+    min-height: 400px;
+    display: flex; flex-direction: column;
+  }
+  .panel { display: none; flex-direction: column; height: 100%; }
+  .panel.active { display: flex; }
+  .panel-title {
+    font-size: 20px;
+    color: var(--accent);
+    margin-bottom: 24px;
+    font-weight: normal;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .field {
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .field label {
+    font-family: -apple-system, sans-serif;
+    font-size: 11px;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .field input, .field select {
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 9px 12px;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    color: var(--ink);
+    background: var(--paper);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field input:focus, .field select:focus {
+    border-color: var(--accent);
+    background: white;
+  }
+  .field-full { grid-column: 1 / -1; }
+
+  /* ── Calculator panel ──────────────────────────────────────────────────── */
+  .calc-result {
+    margin-top: auto;
+    background: linear-gradient(135deg, #0f1f3d, #1a3a5c);
+    border-radius: 8px;
+    padding: 24px;
+    color: white;
+  }
+  .calc-label {
+    font-family: -apple-system, sans-serif;
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .calc-amount {
+    font-family: 'Courier New', monospace;
+    font-size: 32px;
+    font-weight: bold;
+    color: #86efac;
+    letter-spacing: -0.02em;
+  }
+  .calc-breakdown {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .calc-item {
+    font-family: -apple-system, sans-serif;
+    font-size: 12px;
+  }
+  .calc-item-label { color: rgba(255,255,255,0.5); margin-bottom: 2px; }
+  .calc-item-val   { font-family: 'Courier New', monospace; color: rgba(255,255,255,0.9); }
+
+  .wizard-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 32px;
+    border-top: 1px solid var(--rule);
+    background: #fafaf8;
+  }
+  .btn {
+    font-family: -apple-system, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 9px 20px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.02em;
+  }
+  .btn-primary { background: var(--accent2); color: white; }
+  .btn-primary:hover { background: #b5662e; }
+  .btn-ghost { background: transparent; color: var(--ink-soft); border: 1px solid var(--rule); }
+  .btn-ghost:hover { border-color: var(--ink-soft); color: var(--ink); }
+  .btn-calc {
+    background: var(--accent3);
+    color: white;
+    width: 100%;
+    padding: 12px;
+    margin-top: 16px;
+    font-size: 14px;
+  }
+  .btn-calc:hover { background: #245a42; }
+  .progress-label {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--ink-muted);
+  }
+
+  /* ── Architecture diagram ───────────────────────────────────────────────── */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 32px;
+  }
+  .arch-col {
+    background: white;
+    padding: 24px;
+  }
+  .arch-layer-label {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: 16px;
+  }
+  .arch-box {
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: var(--ink);
+    background: var(--paper);
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .arch-box:hover { border-color: var(--accent2); background: white; }
+  .arch-box.highlight { border-color: var(--accent2); background: #fff8f4; color: var(--accent2); }
+  .arch-box.star { border-color: var(--accent3); background: #f0faf5; color: var(--accent3); }
+  .arch-arrow {
+    text-align: center;
+    font-size: 20px;
+    color: var(--ink-muted);
+    margin: 8px 0;
+  }
+
+  /* ── Code block ─────────────────────────────────────────────────────────── */
+  .code-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid #2d3748;
+    margin: 0;
+  }
+  .code-tab {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    padding: 8px 16px;
+    color: #718096;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s;
+  }
+  .code-tab.active { color: #86efac; border-bottom-color: #86efac; }
+  .code-block {
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.65;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+    margin-top: 24px;
+  }
+  .code-block pre {
+    padding: 24px;
+    overflow-x: auto;
+    color: var(--code-fg);
+    display: none;
+  }
+  .code-block pre.active { display: block; }
+  .kw  { color: var(--code-pink); }
+  .fn  { color: var(--code-blue); }
+  .st  { color: var(--code-amber); }
+  .cm  { color: #6b7280; font-style: italic; }
+  .nu  { color: #86efac; }
+  .cl  { color: #c4b5fd; }
+  .op  { color: #94a3b8; }
+
+  /* ── Rules engine table ─────────────────────────────────────────────────── */
+  .rules-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 32px;
+  }
+  .rule-card {
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 18px 20px;
+    background: white;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .rule-card:hover { border-color: var(--accent2); box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+  .rule-card-label {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent2);
+    margin-bottom: 6px;
+  }
+  .rule-card-title {
+    font-family: -apple-system, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .rule-card-desc {
+    font-family: -apple-system, sans-serif;
+    font-size: 12px;
+    color: var(--ink-muted);
+    line-height: 1.5;
+  }
+
+  /* ── Timeline ───────────────────────────────────────────────────────────── */
+  .timeline { margin-top: 32px; position: relative; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px; top: 0; bottom: 0;
+    width: 1px; background: var(--rule);
+  }
+  .tl-item {
+    display: flex; gap: 24px;
+    margin-bottom: 28px;
+    position: relative;
+  }
+  .tl-dot {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: white; border: 1.5px solid var(--rule);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Courier New', monospace; font-size: 11px;
+    color: var(--ink-muted); flex-shrink: 0; z-index: 1;
+  }
+  .tl-dot.done { background: var(--accent3); border-color: var(--accent3); color: white; }
+  .tl-dot.active { background: var(--accent2); border-color: var(--accent2); color: white; }
+  .tl-content { flex: 1; padding-top: 4px; }
+  .tl-version {
+    font-family: 'Courier New', monospace;
+    font-size: 11px; color: var(--accent2);
+    margin-bottom: 2px;
+  }
+  .tl-title {
+    font-family: -apple-system, sans-serif;
+    font-size: 15px; font-weight: 600; color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .tl-desc {
+    font-family: -apple-system, sans-serif;
+    font-size: 13px; color: var(--ink-soft); line-height: 1.5;
+  }
+
+  /* ── Live tax calculator ─────────────────────────────────────────────────── */
+  .calculator {
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+    margin-top: 32px;
+  }
+  .calc-header {
+    background: var(--accent);
+    padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .calc-header-title {
+    font-family: 'Courier New', monospace;
+    font-size: 13px; color: white; font-weight: bold;
+  }
+  .calc-header-sub {
+    font-family: -apple-system, sans-serif;
+    font-size: 11px; color: rgba(255,255,255,0.6);
+  }
+  .calc-body { padding: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .calc-inputs { display: flex; flex-direction: column; gap: 16px; }
+  .calc-output {
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .calc-output-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #1e293b;
+  }
+  .calc-output-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .calc-output-row.total { padding-top: 8px; }
+  .out-label {
+    font-family: -apple-system, sans-serif;
+    font-size: 11px; color: #6b7280; letter-spacing: 0.04em;
+  }
+  .out-val {
+    font-family: 'Courier New', monospace;
+    font-size: 14px; color: #e2e8f0;
+  }
+  .out-val.green { color: #86efac; font-size: 20px; font-weight: bold; }
+  .out-val.amber { color: #fcd34d; }
+  .out-val.red   { color: #fca5a5; font-size: 20px; font-weight: bold; }
+
+  /* ── Footer ─────────────────────────────────────────────────────────────── */
+  footer {
+    padding: 40px 0;
+    border-top: 1px solid var(--rule);
+    background: var(--paper-warm);
+  }
+  .footer-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 20px; flex-wrap: wrap;
+  }
+  .footer-brand {
+    font-family: 'Courier New', monospace;
+    font-size: 13px; color: var(--ink-soft); font-weight: bold;
+  }
+  .footer-links { display: flex; gap: 20px; }
+  .footer-links a {
+    font-family: -apple-system, sans-serif;
+    font-size: 13px; color: var(--ink-muted); text-decoration: none;
+  }
+  .footer-links a:hover { color: var(--accent2); }
+  .footer-note {
+    font-family: -apple-system, sans-serif;
+    font-size: 12px; color: var(--ink-muted);
+  }
+
+  /* ── Utility ─────────────────────────────────────────────────────────────── */
+  .tag {
+    display: inline-block;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    padding: 2px 8px; border-radius: 3px;
+    background: var(--paper-warm); color: var(--ink-soft);
+    border: 1px solid var(--rule);
+  }
+  .divider { border: none; border-top: 1px solid var(--rule); margin: 32px 0; }
+  .mt8 { margin-top: 8px; }
+  .mt16 { margin-top: 16px; }
+  .mt24 { margin-top: 24px; }
+  .mt32 { margin-top: 32px; }
+
+  @media (max-width: 680px) {
+    nav { display: none; }
+    .wizard-body { grid-template-columns: 1fr; }
+    .wizard-sidebar { display: none; }
+    .field-grid { grid-template-columns: 1fr; }
+    .arch-grid { grid-template-columns: 1fr; }
+    .rules-grid { grid-template-columns: 1fr; }
+    .calc-body { grid-template-columns: 1fr; }
+    .hero-stats { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-brand" href="#">RENTA-DECLARACIÓN</a>
+  <ul class="nav-links">
+    <li><a href="#wizard">Wizard</a></li>
+    <li><a href="#engine">Engine</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#calculator">Live Demo</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+  </ul>
+  <a class="nav-gh" href="https://github.com/YOUR_USER/renta-declaracion" target="_blank">GitHub ↗</a>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="container">
+    <p class="eyebrow">Open-source · Colombia · Tax Year 2025</p>
+    <h1>Tax return engine<br/>for <em>real accountants</em></h1>
+    <p class="hero-sub">
+      A guided wizard and rules engine that automates the Colombian personal income tax return (Formulario 210 – DIAN) — built with FastAPI, React, and Decimal precision throughout.
+    </p>
+    <div class="hero-badges">
+      <span class="badge badge-navy">Python 3.12</span>
+      <span class="badge badge-navy">FastAPI</span>
+      <span class="badge badge-navy">PostgreSQL 16</span>
+      <span class="badge badge-copper">React 18</span>
+      <span class="badge badge-green">88 tests passing</span>
+      <span class="badge badge-gray">MIT License</span>
+    </div>
+    <div class="hero-stats">
+      <div class="stat">
+        <span class="stat-n">88</span>
+        <span class="stat-l sans">unit tests</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n">7</span>
+        <span class="stat-l sans">API routers</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n">0</span>
+        <span class="stat-l sans">floats in math</span>
+      </div>
+      <div class="stat">
+        <span class="stat-n">v0.6</span>
+        <span class="stat-l sans">current</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WIZARD DEMO -->
+<section id="wizard">
+  <div class="container">
+    <p class="eyebrow">Step-by-step experience</p>
+    <h2>The guided wizard</h2>
+    <p class="section-intro">Eight steps walk the accountant through every section of the Formulario 210 — from taxpayer profile to final tax balance. Click the steps to explore each panel.</p>
+
+    <div class="wizard-shell">
+      <div class="wizard-topbar">
+        <div class="topbar-dot"></div>
+        <div class="topbar-dot"></div>
+        <div class="topbar-dot"></div>
+        <span class="topbar-title">Formulario 210 · Año gravable 2025</span>
+        <span class="topbar-badge">Contador</span>
+      </div>
+      <div class="wizard-body">
+        <aside class="wizard-sidebar">
+          <div class="wizard-step done"    onclick="goStep(0)"><div class="step-icon">✓</div>Perfil</div>
+          <div class="wizard-step done"    onclick="goStep(1)"><div class="step-icon">✓</div>Datos generales</div>
+          <div class="wizard-step done"    onclick="goStep(2)"><div class="step-icon">✓</div>Patrimonio</div>
+          <div class="wizard-step done"    onclick="goStep(3)"><div class="step-icon">✓</div>Rentas cedulares</div>
+          <div class="wizard-step done"    onclick="goStep(4)"><div class="step-icon">✓</div>Renta presuntiva</div>
+          <div class="wizard-step active"  onclick="goStep(5)" id="step5"><div class="step-icon">6</div>Ganancias ocas.</div>
+          <div class="wizard-step"         onclick="goStep(6)" id="step6"><div class="step-icon">7</div>Liquidación</div>
+          <div class="wizard-step"         onclick="goStep(7)" id="step7"><div class="step-icon">8</div>Resumen</div>
+        </aside>
+        <div class="wizard-main">
+
+          <!-- PANEL 0: Perfil -->
+          <div class="panel" id="panel-0">
+            <h3 class="panel-title">1. Perfil del declarante</h3>
+            <div class="field-grid">
+              <div class="field">
+                <label>NIT / Cédula</label>
+                <input type="text" value="1.234.567.890" readonly/>
+              </div>
+              <div class="field">
+                <label>Dígito de verificación</label>
+                <input type="text" value="5" readonly/>
+              </div>
+              <div class="field field-full">
+                <label>Nombre completo</label>
+                <input type="text" value="García Martínez, Carlos Andrés" readonly/>
+              </div>
+              <div class="field">
+                <label>Actividad económica</label>
+                <input type="text" value="0111 — Cultivo de cereales" readonly/>
+              </div>
+              <div class="field">
+                <label>Año gravable</label>
+                <input type="text" value="2025" readonly/>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 1: Datos generales -->
+          <div class="panel" id="panel-1">
+            <h3 class="panel-title">2. Datos generales</h3>
+            <div class="field-grid">
+              <div class="field">
+                <label>País de residencia</label>
+                <input type="text" value="Colombia" readonly/>
+              </div>
+              <div class="field">
+                <label>Años presentando declaración</label>
+                <input type="text" value="5" readonly/>
+              </div>
+              <div class="field field-full">
+                <label>Fracción de año gravable</label>
+                <input type="text" value="Año completo (01 enero – 31 diciembre 2025)" readonly/>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 2: Patrimonio -->
+          <div class="panel" id="panel-2">
+            <h3 class="panel-title">3. Patrimonio</h3>
+            <div class="field-grid">
+              <div class="field">
+                <label>Efectivo y bancos</label>
+                <input type="text" value="$ 12.500.000" readonly/>
+              </div>
+              <div class="field">
+                <label>Inversiones</label>
+                <input type="text" value="$ 45.000.000" readonly/>
+              </div>
+              <div class="field">
+                <label>Inmuebles</label>
+                <input type="text" value="$ 280.000.000" readonly/>
+              </div>
+              <div class="field">
+                <label>Vehículos</label>
+                <input type="text" value="$ 55.000.000" readonly/>
+              </div>
+              <div class="field">
+                <label>Deudas bancarias</label>
+                <input type="text" value="$ 80.000.000" readonly/>
+              </div>
+              <div class="field">
+                <label>Patrimonio líquido</label>
+                <input type="text" value="$ 312.500.000" readonly style="color:#2d6a4f;font-weight:bold;"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 3: Rentas cedulares -->
+          <div class="panel" id="panel-3">
+            <h3 class="panel-title">4. Rentas cedulares</h3>
+            <div class="field-grid">
+              <div class="field">
+                <label>Salarios y prestaciones</label>
+                <input type="text" value="$ 96.000.000" readonly/>
+              </div>
+              <div class="field">
+                <label>Fondo de pensiones obligatorio</label>
+                <input type="text" value="$ 3.840.000" readonly/>
+              </div>
+              <div class="field">
+                <label>AFC</label>
+                <input type="text" value="$ 6.000.000" readonly/>
+              </div>
+              <div class="field">
+                <label>Intereses crédito vivienda</label>
+                <input type="text" value="$ 4.800.000" readonly/>
+              </div>
+              <div class="field">
+                <label>Dependientes económicos</label>
+                <input type="text" value="2" readonly/>
+              </div>
+              <div class="field">
+                <label>Renta exenta laboral 25%</label>
+                <input type="text" value="$ 18.696.000" readonly style="color:#2d6a4f;"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 4: Renta presuntiva -->
+          <div class="panel" id="panel-4">
+            <h3 class="panel-title">5. Renta presuntiva</h3>
+            <div class="field-grid">
+              <div class="field">
+                <label>Patrimonio líquido año anterior</label>
+                <input type="text" value="$ 290.000.000" readonly/>
+              </div>
+              <div class="field">
+                <label>Tarifa presuntiva 2025</label>
+                <input type="text" value="0.00%" readonly style="color:#2d6a4f;"/>
+              </div>
+              <div class="field field-full">
+                <label>Renta presuntiva calculada</label>
+                <input type="text" value="$ 0 — Ley 2277/2022 fijó tarifa en 0%" readonly style="color:#2d6a4f;font-weight:bold;"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 5: Ganancias ocasionales (default active) -->
+          <div class="panel active" id="panel-5">
+            <h3 class="panel-title">6. Ganancias ocasionales</h3>
+            <div class="field-grid">
+              <div class="field">
+                <label>Tipo de ganancia</label>
+                <select>
+                  <option>Venta de inmueble</option>
+                  <option>Venta de acciones</option>
+                  <option>Herencia / legado</option>
+                  <option>Lotería / rifa</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Precio de venta</label>
+                <input type="text" value="$ 350.000.000"/>
+              </div>
+              <div class="field">
+                <label>Costo de adquisición</label>
+                <input type="text" value="$ 180.000.000"/>
+              </div>
+              <div class="field">
+                <label>Año de adquisición</label>
+                <input type="text" value="2018"/>
+              </div>
+              <div class="field field-full">
+                <label>¿Casa de habitación única?</label>
+                <select>
+                  <option>Sí — aplica exención art. 311-1 E.T. (hasta 5.000 UVT)</option>
+                  <option>No</option>
+                </select>
+              </div>
+            </div>
+            <div class="calc-result">
+              <div class="calc-label">Resultado — Ganancia ocasional</div>
+              <div class="calc-amount">$ 68.942.000</div>
+              <div class="calc-breakdown">
+                <div class="calc-item"><div class="calc-item-label">Ganancia bruta</div><div class="calc-item-val">$ 170.000.000</div></div>
+                <div class="calc-item"><div class="calc-item-label">Porción exenta</div><div class="calc-item-val">$ 248.995.000</div></div>
+                <div class="calc-item"><div class="calc-item-label">Base gravable</div><div class="calc-item-val">$ 0</div></div>
+                <div class="calc-item"><div class="calc-item-label">Tarifa (15%)</div><div class="calc-item-val">0% — cubierta por exención</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANEL 6: Liquidación -->
+          <div class="panel" id="panel-6">
+            <h3 class="panel-title">7. Liquidación privada</h3>
+            <div class="field-grid">
+              <div class="field">
+                <label>Renta líquida gravable</label>
+                <input type="text" value="$ 54.264.000" readonly/>
+              </div>
+              <div class="field">
+                <label>Impuesto a cargo</label>
+                <input type="text" value="$ 4.918.000" readonly/>
+              </div>
+              <div class="field">
+                <label>Total retenciones en la fuente</label>
+                <input type="text" value="$ 7.200.000" readonly/>
+              </div>
+              <div class="field">
+                <label>Anticipo año siguiente</label>
+                <input type="text" value="$ 3.688.500" readonly/>
+              </div>
+            </div>
+            <button class="btn btn-calc">▶ Recalcular desde el backend</button>
+          </div>
+
+          <!-- PANEL 7: Resumen -->
+          <div class="panel" id="panel-7">
+            <h3 class="panel-title">8. Resumen final</h3>
+            <div class="calc-result" style="margin-top:0;">
+              <div class="calc-label">Saldo a favor del declarante</div>
+              <div class="calc-amount">$ 2.282.000</div>
+              <div class="calc-breakdown">
+                <div class="calc-item"><div class="calc-item-label">Estado</div><div class="calc-item-val" style="color:#86efac;">✓ Calculado</div></div>
+                <div class="calc-item"><div class="calc-item-label">Guardado en BD</div><div class="calc-item-val" style="color:#86efac;">✓ Persistido</div></div>
+                <div class="calc-item"><div class="calc-item-label">UVT utilizada</div><div class="calc-item-val">$ 49.799</div></div>
+                <div class="calc-item"><div class="calc-item-label">Año gravable</div><div class="calc-item-val">2025</div></div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /wizard-main -->
+      </div><!-- /wizard-body -->
+      <div class="wizard-footer">
+        <button class="btn btn-ghost" onclick="prevStep()">← Anterior</button>
+        <span class="progress-label" id="prog-label">Paso 6 de 8</span>
+        <button class="btn btn-primary" onclick="nextStep()">Continuar →</button>
+      </div>
+    </div><!-- /wizard-shell -->
+  </div>
+</section>
+
+<!-- RULES ENGINE -->
+<section id="engine">
+  <div class="container">
+    <p class="eyebrow">Rules engine</p>
+    <h2>Tax rules as pure functions</h2>
+    <p class="section-intro">Every tax calculation is a stateless Python function: receives typed inputs, returns typed outputs. No database calls, no side effects — testable in isolation.</p>
+
+    <div class="rules-grid">
+      <div class="rule-card">
+        <div class="rule-card-label">tarifa.py</div>
+        <div class="rule-card-title">Progressive tax table</div>
+        <div class="rule-card-desc">UVT-based marginal rates (art. 241 E.T.) — 0% to 39% across 7 brackets. Converts pesos ↔ UVT with rounding.</div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-card-label">deducciones.py</div>
+        <div class="rule-card-title">Statutory deductions</div>
+        <div class="rule-card-desc">Housing interest, health insurance, dependents, ICETEX, cesantías — each with its UVT cap and combined 40% ceiling (art. 336).</div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-card-label">ganancias_ocasionales.py</div>
+        <div class="rule-card-title">Occasional gains</div>
+        <div class="rule-card-desc">Real estate sales with art. 73 fiscal adjustment, shares (bolsa exemption), inheritance, and lottery — separate 15%/20% rates.</div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-card-label">dividendos.py</div>
+        <div class="rule-card-title">Dividends (Ley 2277/2022)</div>
+        <div class="rule-card-desc">Two-step: 35% on untaxed dividends at source, then marginal table on remainder. Handles both gravados and no-gravados.</div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-card-label">anticipo.py</div>
+        <div class="rule-card-title">Advance tax payment</div>
+        <div class="rule-card-desc">Art. 807–809: chooses the lower of individual method (25–75%) vs. two-year average. Scales with years of filing history.</div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-card-label">sanciones.py</div>
+        <div class="rule-card-title">Penalties & interest</div>
+        <div class="rule-card-desc">Late filing (5%/month, 100% cap), voluntary correction (10%/20%), and daily mora interest — all with the statutory minimum floor.</div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-card-label">moneda_extranjera.py</div>
+        <div class="rule-card-title">Foreign currency</div>
+        <div class="rule-card-desc">Art. 269 E.T.: assets valued at year-end TRM; income at transaction-date TRM. TRM supplied by the service layer.</div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-card-label">compensaciones.py</div>
+        <div class="rule-card-title">Loss carryforward</div>
+        <div class="rule-card-desc">Art. 147: applies prior-year fiscal losses against cedular income. Returns utilized amount, remainder, and net liquid income.</div>
+      </div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-tabs">
+        <div class="code-tab active" onclick="showCode(0, this)">tarifa.py</div>
+        <div class="code-tab" onclick="showCode(1, this)">json_encoder.py</div>
+        <div class="code-tab" onclick="showCode(2, this)">parametros_service.py</div>
+      </div>
+      <pre class="active"><span class="cm"># rules_engine/tarifa.py — core calculation, no imports from SQLAlchemy</span>
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+
+<span class="kw">def</span> <span class="fn">calcular_impuesto_uvt</span>(
+    base_uvt: Decimal,
+    tabla: list[tuple[Decimal, Decimal | None, Decimal, Decimal]],
+) -> Decimal:
+    <span class="st">"""
+    Applies the progressive UVT table.
+    Returns tax in UVT — convert to pesos with a_pesos().
+    Each tuple: (lower_bound, upper_bound, marginal_rate, base_tax_uvt)
+    """</span>
+    <span class="kw">for</span> inf, sup, tarifa, base <span class="kw">in</span> tabla:
+        <span class="kw">if</span> sup <span class="kw">is None or</span> base_uvt <span class="op">&lt;=</span> sup:
+            <span class="kw">return</span> base <span class="op">+</span> (base_uvt <span class="op">-</span> inf) <span class="op">*</span> tarifa
+    <span class="kw">return</span> Decimal(<span class="st">"0"</span>)
+
+<span class="kw">def</span> <span class="fn">calcular_renta_exenta_laboral</span>(
+    ingreso_salarios_pesos: Decimal,
+    <span class="op">*</span>,
+    porcentaje: Decimal,       <span class="cm"># Decimal("0.25")</span>
+    tope_uvt: Decimal,
+    uvt: Decimal,
+) -> Decimal:
+    base <span class="op">=</span> ingreso_salarios_pesos <span class="op">*</span> porcentaje   <span class="cm"># Decimal × Decimal ✓</span>
+    tope <span class="op">=</span> tope_uvt <span class="op">*</span> uvt
+    <span class="kw">return</span> <span class="fn">min</span>(base, tope)</pre>
+      <pre><span class="cm"># core/json_encoder.py — one place, covers all endpoints + all JSONB fields</span>
+<span class="kw">import</span> json
+<span class="kw">from</span> decimal <span class="kw">import</span> Decimal
+<span class="kw">from</span> fastapi.responses <span class="kw">import</span> JSONResponse
+
+<span class="kw">def</span> <span class="fn">_default</span>(obj):
+    <span class="kw">if isinstance</span>(obj, Decimal): <span class="kw">return</span> <span class="fn">str</span>(obj)
+    <span class="kw">raise</span> <span class="cl">TypeError</span>(<span class="st">f"Not serializable: </span><span class="op">{</span><span class="fn">type</span>(obj)<span class="op">}</span><span class="st">"</span>)
+
+<span class="kw">def</span> <span class="fn">dumps_decimal</span>(data) -> str:
+    <span class="kw">return</span> json.<span class="fn">dumps</span>(data, default<span class="op">=</span>_default)
+
+<span class="kw">class</span> <span class="cl">DecimalJSONResponse</span>(JSONResponse):
+    <span class="kw">def</span> <span class="fn">render</span>(self, content) -> bytes:
+        <span class="kw">return</span> json.<span class="fn">dumps</span>(content, default<span class="op">=</span>_default,
+            separators<span class="op">=</span>(<span class="st">","</span>, <span class="st">":"</span>), ensure_ascii<span class="op">=</span><span class="kw">False</span>,
+        ).<span class="fn">encode</span>(<span class="st">"utf-8"</span>)
+
+<span class="cm"># main.py — registered once, covers every endpoint automatically</span>
+app <span class="op">=</span> <span class="fn">FastAPI</span>(default_response_class<span class="op">=</span><span class="cl">DecimalJSONResponse</span>)
+
+<span class="cm"># db/session.py — covers every JSONB column in every ORM model</span>
+engine <span class="op">=</span> <span class="fn">create_engine</span>(url, json_serializer<span class="op">=</span>dumps_decimal)</pre>
+      <pre><span class="cm"># services/parametros_service.py — float→Decimal at the boundary</span>
+<span class="kw">class</span> <span class="cl">ParametrosVigentes</span>:
+    <span class="st">"""
+    When params come from JSONB (production), PostgreSQL
+    deserialises them as Python float — JSON has no Decimal.
+    The _d() helper converts at the boundary so every attribute
+    the rules engine sees is already Decimal.
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, datos: dict):
+        <span class="kw">def</span> <span class="fn">_d</span>(v) -> Decimal:
+            <span class="kw">if isinstance</span>(v, Decimal): <span class="kw">return</span> v
+            <span class="kw">return</span> <span class="cl">Decimal</span>(<span class="fn">str</span>(v))   <span class="cm"># str() avoids IEEE-754 drift</span>
+
+        self.UVT  <span class="op">=</span> <span class="fn">_d</span>(datos[<span class="st">"uvt"</span>])           <span class="cm"># e.g. Decimal("49799")</span>
+        self.PORCENTAJE_RENTA_EXENTA_LABORAL <span class="op">=</span> <span class="fn">_d</span>(
+            datos[<span class="st">"porcentaje_renta_exenta_laboral"</span>]  <span class="cm"># Decimal("0.25")</span>
+        )
+        self.TABLA_TARIFA_UVT <span class="op">=</span> self.<span class="fn">_tabla_a_tuplas</span>(
+            datos[<span class="st">"tabla_tarifa"</span>]
+        )
+        <span class="cm"># ... 30+ attributes, all through _d()</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="wide">
+    <div class="container" style="max-width:860px">
+      <p class="eyebrow">System design</p>
+      <h2>Three-layer architecture</h2>
+      <p class="section-intro">The rules engine has zero SQLAlchemy imports — it can be tested, audited, and reused without any infrastructure. The service layer owns orchestration; routers own only HTTP concerns.</p>
+    </div>
+
+    <div class="arch-grid" style="max-width:860px;margin:32px auto 0;">
+      <div class="arch-col">
+        <div class="arch-layer-label">HTTP layer</div>
+        <div class="arch-box">routes_auth.py</div>
+        <div class="arch-box">routes_declarantes.py</div>
+        <div class="arch-box highlight">routes_liquidacion.py</div>
+        <div class="arch-box">routes_ganancias*.py</div>
+        <div class="arch-box">routes_configuracion.py</div>
+        <div class="arch-box">routes_admin.py</div>
+        <div class="arch-box">routes_checklist.py</div>
+        <div class="arch-arrow">↓ service calls</div>
+      </div>
+      <div class="arch-col">
+        <div class="arch-layer-label">Service layer</div>
+        <div class="arch-box highlight">liquidacion_service.py</div>
+        <div class="arch-box">declarante_service.py</div>
+        <div class="arch-box">parametros_service.py</div>
+        <div class="arch-box">auditoria_service.py</div>
+        <div class="arch-box star">ParametrosVigentes<br/><span style="font-size:10px;color:#6b7280;">float→Decimal boundary</span></div>
+        <div class="arch-arrow">↓ pure functions</div>
+      </div>
+      <div class="arch-col">
+        <div class="arch-layer-label">Rules engine</div>
+        <div class="arch-box star">tarifa.py</div>
+        <div class="arch-box star">deducciones.py</div>
+        <div class="arch-box star">ganancias_ocasionales.py</div>
+        <div class="arch-box star">dividendos.py</div>
+        <div class="arch-box star">anticipo.py</div>
+        <div class="arch-box star">sanciones.py</div>
+        <div class="arch-box star">moneda_extranjera.py</div>
+        <div class="arch-box star">compensaciones.py</div>
+      </div>
+    </div>
+
+    <div class="container mt32" style="max-width:860px">
+      <h3>Key design decisions</h3>
+      <div class="rules-grid">
+        <div class="rule-card">
+          <div class="rule-card-label">Decision 1</div>
+          <div class="rule-card-title">Params as data, not code</div>
+          <div class="rule-card-desc">UVT, tax table, and all caps live in PostgreSQL, managed by the Admin UI. No redeployment for next fiscal year — add a new DB record.</div>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-label">Decision 2</div>
+          <div class="rule-card-title">Decimal everywhere</div>
+          <div class="rule-card-desc"><code>Decimal("0.25")</code> not <code>0.25</code>. IEEE-754 drift is unacceptable in a tax return filed with the DIAN. 10 bugs found and fixed.</div>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-label">Decision 3</div>
+          <div class="rule-card-title">Backend is the source of truth</div>
+          <div class="rule-card-desc">The wizard may show estimated results for UX — but the value persisted to <code>resultado_liquidacion</code> always comes from the API.</div>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-label">Decision 4</div>
+          <div class="rule-card-title">Audit trail by design</div>
+          <div class="rule-card-desc">Every write generates an <code>auditoria_cambio</code> row with actor, action, and before/after JSONB. Includes bulk imports.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LIVE CALCULATOR -->
+<section id="calculator">
+  <div class="container">
+    <p class="eyebrow">Interactive demo</p>
+    <h2>Live tax estimator</h2>
+    <p class="section-intro">A simplified version of the rules engine running in-browser. Change the inputs to see how the Colombian progressive table (art. 241 E.T.) calculates your tax. UVT 2025 = $ 49,799.</p>
+
+    <div class="calculator">
+      <div class="calc-header">
+        <div>
+          <div class="calc-header-title">Motor de reglas — Cédula general 2025</div>
+          <div class="calc-header-sub">Simplified simulation · Art. 241 E.T. · UVT $ 49,799</div>
+        </div>
+        <span class="badge badge-green" style="font-size:12px;">Live</span>
+      </div>
+      <div class="calc-body">
+        <div class="calc-inputs">
+          <div class="field">
+            <label>Salarios y prestaciones ($ COP)</label>
+            <input type="number" id="i-salario" value="96000000" oninput="calcular()" step="1000000"/>
+          </div>
+          <div class="field">
+            <label>Fondo de pensiones obligatorio ($)</label>
+            <input type="number" id="i-pension" value="3840000" oninput="calcular()" step="100000"/>
+          </div>
+          <div class="field">
+            <label>AFC ($)</label>
+            <input type="number" id="i-afc" value="6000000" oninput="calcular()" step="500000"/>
+          </div>
+          <div class="field">
+            <label>Deducción por vivienda ($)</label>
+            <input type="number" id="i-vivienda" value="4800000" oninput="calcular()" step="100000"/>
+          </div>
+          <div class="field">
+            <label>Retenciones en la fuente ($)</label>
+            <input type="number" id="i-retenciones" value="7200000" oninput="calcular()" step="100000"/>
+          </div>
+        </div>
+        <div class="calc-output">
+          <div class="calc-output-row">
+            <span class="out-label">Ingreso neto cedular</span>
+            <span class="out-val" id="o-neto">—</span>
+          </div>
+          <div class="calc-output-row">
+            <span class="out-label">Renta exenta laboral 25%</span>
+            <span class="out-val" id="o-exenta">—</span>
+          </div>
+          <div class="calc-output-row">
+            <span class="out-label">Renta líquida gravable</span>
+            <span class="out-val amber" id="o-gravable">—</span>
+          </div>
+          <div class="calc-output-row">
+            <span class="out-label">Tramo de tarifa aplicado</span>
+            <span class="out-val" id="o-tramo">—</span>
+          </div>
+          <div class="calc-output-row">
+            <span class="out-label">Impuesto a cargo</span>
+            <span class="out-val amber" id="o-impuesto">—</span>
+          </div>
+          <div class="calc-output-row total">
+            <span class="out-label" style="font-size:13px;color:#e2e8f0;">SALDO FINAL</span>
+            <span class="out-val green" id="o-saldo">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ROADMAP -->
+<section id="roadmap">
+  <div class="container">
+    <p class="eyebrow">Project history & next steps</p>
+    <h2>Timeline</h2>
+    <p class="section-intro">Built iteratively with conventional commits and ADR documentation. Each version is a releasable increment.</p>
+
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-dot done">✓</div>
+        <div class="tl-content">
+          <div class="tl-version">v0.1 — Jul 2026</div>
+          <div class="tl-title">Rules engine + API foundation</div>
+          <div class="tl-desc">Pure tax calculation engine (8 modules, 88 unit tests). FastAPI backend with JWT auth, role-based access, and Docker Compose.</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot done">✓</div>
+        <div class="tl-content">
+          <div class="tl-version">v0.2 — Jul 2026</div>
+          <div class="tl-title">Wizard connected to API</div>
+          <div class="tl-desc">8-step guided wizard fully wired to the backend. Patrimony step, cedular income step, liquidation persistence to JSONB.</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot done">✓</div>
+        <div class="tl-content">
+          <div class="tl-version">v0.3 — Jul 2026</div>
+          <div class="tl-title">Admin panel + bulk import</div>
+          <div class="tl-desc">Admin dashboard, portfolio view, document checklist, Excel bulk import (POST /admin/importar-declarantes) with per-row audit.</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot done">✓</div>
+        <div class="tl-content">
+          <div class="tl-version">v0.4 — Jul 2026</div>
+          <div class="tl-title">Checklist persistence + pagination</div>
+          <div class="tl-desc">Document checklist moved to PostgreSQL (migration 0003). GET /declarantes paginated. React Router v6 with role-based routing.</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot done">✓</div>
+        <div class="tl-content">
+          <div class="tl-version">v0.5 — Jul 2026</div>
+          <div class="tl-title">Multi-role model</div>
+          <div class="tl-desc">usuario_rol join table (M2M). Wizard refactored into hooks. All schemas moved from float to Decimal.</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot done">✓</div>
+        <div class="tl-content">
+          <div class="tl-version">v0.6 — Aug 2026</div>
+          <div class="tl-title">Complete Decimal migration</div>
+          <div class="tl-desc">10 type bugs found and fixed across 16 files. DecimalJSONResponse global. JSONB serialization fixed at engine level. 0 float in monetary math.</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot active">→</div>
+        <div class="tl-content">
+          <div class="tl-version">v0.7 — next</div>
+          <div class="tl-title">Parity tests + PDF export</div>
+          <div class="tl-desc">Integration test suite against reference Excel data. Formulario 210 PDF mapper (all casillas). Refresh token for long wizard sessions.</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-dot">◦</div>
+        <div class="tl-content">
+          <div class="tl-version">v1.0 — planned</div>
+          <div class="tl-title">Production-ready platform</div>
+          <div class="tl-desc">HTTPS, structured logging, automated backups, Habeas Data compliance, TRM auto-fetch from Banco de la República API.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <span class="footer-brand">RENTA-DECLARACIÓN v0.6</span>
+      <div class="footer-links">
+        <a href="https://github.com/YOUR_USER/renta-declaracion" target="_blank">GitHub</a>
+        <a href="https://github.com/YOUR_USER/renta-declaracion/blob/main/docs/ARQUITECTURA.md" target="_blank">Architecture</a>
+        <a href="https://github.com/YOUR_USER/renta-declaracion/blob/main/docs/ROADMAP.md" target="_blank">Roadmap</a>
+        <a href="https://github.com/YOUR_USER/renta-declaracion/blob/main/CHANGELOG.md" target="_blank">Changelog</a>
+      </div>
+      <span class="footer-note">MIT License · Built with FastAPI + React · Colombia 🇨🇴</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ── Wizard navigation ───────────────────────────────────────────────────────
+const STEPS = [
+  { id: 'panel-0', label: 'Paso 1 de 8' },
+  { id: 'panel-1', label: 'Paso 2 de 8' },
+  { id: 'panel-2', label: 'Paso 3 de 8' },
+  { id: 'panel-3', label: 'Paso 4 de 8' },
+  { id: 'panel-4', label: 'Paso 5 de 8' },
+  { id: 'panel-5', label: 'Paso 6 de 8' },
+  { id: 'panel-6', label: 'Paso 7 de 8' },
+  { id: 'panel-7', label: 'Paso 8 de 8' },
+];
+let current = 5;
+
+function goStep(n) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(STEPS[n].id).classList.add('active');
+  document.getElementById('prog-label').textContent = STEPS[n].label;
+
+  const sideSteps = document.querySelectorAll('.wizard-step');
+  sideSteps.forEach((el, i) => {
+    el.classList.remove('active', 'done');
+    if (i < n) el.classList.add('done');
+    else if (i === n) el.classList.add('active');
+    // update icon
+    const icon = el.querySelector('.step-icon');
+    if (i < n) { icon.textContent = '✓'; }
+    else { icon.textContent = String(i + 1); }
+  });
+  current = n;
+}
+function nextStep() { if (current < STEPS.length - 1) goStep(current + 1); }
+function prevStep() { if (current > 0) goStep(current - 1); }
+
+// ── Code tabs ───────────────────────────────────────────────────────────────
+function showCode(idx, el) {
+  document.querySelectorAll('.code-block pre').forEach((p,i) => p.classList.toggle('active', i === idx));
+  document.querySelectorAll('.code-tab').forEach((t,i) => t.classList.toggle('active', i === idx));
+}
+
+// ── Live tax calculator ─────────────────────────────────────────────────────
+const UVT = 49799;
+const TABLA = [
+  [0,    1090,  0.00, 0],
+  [1090, 1700,  0.19, 0],
+  [1700, 4100,  0.28, 116],
+  [4100, 8670,  0.33, 788],
+  [8670, 18970, 0.35, 2296],
+  [18970,31000, 0.37, 6901],
+  [31000,null,  0.39, 11352],
+];
+const TOPE_EXENTA_LABORAL_UVT = 790;
+const TOPE_DEDUCCIONES_UVT    = 1340;
+const LIMITE_PCTJ             = 0.40;
+
+function cop(n) { return '$ ' + Math.round(n).toLocaleString('es-CO'); }
+function pct(n) { return (n * 100).toFixed(0) + '%'; }
+
+function calcular() {
+  const salario     = +document.getElementById('i-salario').value    || 0;
+  const pension     = +document.getElementById('i-pension').value    || 0;
+  const afc         = +document.getElementById('i-afc').value        || 0;
+  const vivienda    = +document.getElementById('i-vivienda').value   || 0;
+  const retenciones = +document.getElementById('i-retenciones').value|| 0;
+
+  // Ingreso neto cedular
+  const neto = Math.max(salario - pension - afc, 0);
+
+  // Renta exenta laboral 25%
+  const exenta_calc = neto * 0.25;
+  const tope_exenta = TOPE_EXENTA_LABORAL_UVT * UVT;
+  const exenta = Math.min(exenta_calc, tope_exenta);
+
+  // Deducciones (vivienda simplificado)
+  const deduccion = Math.min(vivienda, TOPE_DEDUCCIONES_UVT * UVT);
+
+  // Límite combinado rentas exentas + deducciones: 40% del ingreso neto o 1340 UVT
+  const tope_combinado = Math.min(neto * LIMITE_PCTJ, TOPE_DEDUCCIONES_UVT * UVT);
+  const exentas_y_ded  = Math.min(exenta + deduccion, tope_combinado);
+
+  // Renta líquida gravable
+  const gravable = Math.max(neto - exentas_y_ded, 0);
+  const gravable_uvt = gravable / UVT;
+
+  // Calcular impuesto según tabla
+  let impuesto_uvt = 0, tramo_label = '0% (exento)';
+  for (const [inf, sup, tarifa, base] of TABLA) {
+    if (sup === null || gravable_uvt <= sup) {
+      impuesto_uvt = base + (gravable_uvt - inf) * tarifa;
+      tramo_label  = pct(tarifa) + ' marginal (>' + inf.toLocaleString() + ' UVT)';
+      break;
+    }
+  }
+  const impuesto = impuesto_uvt * UVT;
+
+  // Saldo
+  const saldo = retenciones - impuesto;
+
+  document.getElementById('o-neto').textContent     = cop(neto);
+  document.getElementById('o-exenta').textContent   = cop(exenta);
+  document.getElementById('o-gravable').textContent = cop(gravable);
+  document.getElementById('o-tramo').textContent    = tramo_label;
+  document.getElementById('o-impuesto').textContent = cop(impuesto);
+
+  const oSaldo = document.getElementById('o-saldo');
+  oSaldo.textContent = (saldo >= 0 ? '▲ ' : '▼ ') + cop(Math.abs(saldo));
+  oSaldo.className   = 'out-val ' + (saldo >= 0 ? 'green' : 'red');
+}
+
+calcular();
+</script>
+</body>
+</html>
