@@ -685,10 +685,30 @@ export default function DeclaracionRentaWizard({ sesion, declarante, onVolver, o
   /* ---- Render ---- */
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: "#F7F3EA", minHeight: "100vh", color: "#23201A" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap'); * { box-sizing: border-box; } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+        * { box-sizing: border-box; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* Responsive — wizard de declaración de renta.
+           Breakpoint único en 780px: por debajo, el rail de pasos pasa de
+           columna lateral fija a barra horizontal con scroll, y se reduce
+           el padding general para aprovechar el ancho disponible. */
+        @media (max-width: 780px) {
+          .rd-header { padding: 10px 16px !important; flex-wrap: wrap; }
+          .rd-content { padding: 18px 12px 40px !important; }
+          .rd-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
+          .rd-rail { display: flex !important; overflow-x: auto; gap: 6px; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+          .rd-rail::-webkit-scrollbar { height: 4px; }
+          .rd-step-btn { flex: 0 0 auto !important; width: auto !important; white-space: nowrap; }
+          .rd-step-label { display: none; }
+          .rd-step-btn.rd-step-activo .rd-step-label { display: inline; }
+          .rd-panel { padding: 18px 16px !important; min-height: unset !important; }
+        }
+      `}</style>
 
       {/* Header */}
-      <div style={{ background: "#FFF", borderBottom: "1px solid #EAE4D4", padding: "12px 32px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div className="rd-header" style={{ background: "#FFF", borderBottom: "1px solid #EAE4D4", padding: "12px 32px", display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={onVolver} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, color: "#8A7F68", fontSize: 13, fontFamily: "'Inter', sans-serif", padding: 0 }}>
           <ArrowLeft size={14} /> Declarantes
         </button>
@@ -703,7 +723,7 @@ export default function DeclaracionRentaWizard({ sesion, declarante, onVolver, o
         )}
       </div>
 
-      <div style={{ maxWidth: 980, margin: "0 auto", padding: "28px 20px 60px" }}>
+      <div className="rd-content" style={{ maxWidth: 980, margin: "0 auto", padding: "28px 20px 60px" }}>
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, background: "#C96442", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -724,26 +744,27 @@ export default function DeclaracionRentaWizard({ sesion, declarante, onVolver, o
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 28 }}>
+        <div className="rd-grid" style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 28 }}>
           {/* Rail de pasos */}
-          <div>
+          <div className="rd-rail">
             {PASOS.map((p, idx) => {
               const activo = idx === pasoActivo;
               const hecho  = idx < pasoActivo;
               return (
                 <button key={p.id} onClick={() => irAPaso(idx)}
+                  className={`rd-step-btn${activo ? " rd-step-activo" : ""}`}
                   style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: activo ? "#FFFFFF" : "transparent", border: "none", cursor: idx <= pasoActivo || tocado[pasoActivo] ? "pointer" : "default", padding: "10px 8px", borderRadius: 8, marginBottom: 2, opacity: idx > pasoActivo && !tocado[pasoActivo] ? 0.45 : 1, boxShadow: activo ? "0 1px 3px rgba(0,0,0,0.06)" : "none" }}>
                   <div style={{ width: 24, height: 24, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 11.5, fontWeight: 700, fontFamily: "'Inter', sans-serif", background: hecho ? "#4B7B5D" : activo ? "#C96442" : "#EAE4D4", color: hecho || activo ? "#FFF" : "#8A7F68" }}>
                     {hecho ? <Check size={13} /> : p.numero}
                   </div>
-                  <span style={{ fontSize: 13.5, fontWeight: activo ? 600 : 500, color: activo ? "#1E1B15" : "#5B5344" }}>{p.titulo}</span>
+                  <span className="rd-step-label" style={{ fontSize: 13.5, fontWeight: activo ? 600 : 500, color: activo ? "#1E1B15" : "#5B5344" }}>{p.titulo}</span>
                 </button>
               );
             })}
           </div>
 
           {/* Panel de contenido */}
-          <div style={{ background: "#FFFFFF", border: "1px solid #EAE4D4", borderRadius: 14, padding: "28px 32px", boxShadow: "0 1px 2px rgba(0,0,0,0.03)", minHeight: 480 }}>
+          <div className="rd-panel" style={{ background: "#FFFFFF", border: "1px solid #EAE4D4", borderRadius: 14, padding: "28px 32px", boxShadow: "0 1px 2px rgba(0,0,0,0.03)", minHeight: 480 }}>
             {idPaso === "perfil"      && <PasoPerfil perfil={perfil} setPerfil={setPerfil} />}
             {idPaso === "datos"       && <PasoDatos datos={datos} setDatos={setDatos} errores={errores} modoEdicion={!!declarante?.id} />}
             {idPaso === "patrimonio"  && <PasoPatrimonio patrimonio={patrimonio} setPatrimonio={setPatrimonio} errores={errores} patrimonioLiquido={patrimonioLiquido} patrimonioLiquidoAnterior={patrimonioLiquidoAnterior} />}
